@@ -19,14 +19,18 @@ enum TurnStatus {
 }
 
 model User {
-  id           String       @id @default(cuid())
-  username     String       @unique
-  email        String       @unique
-  passwordHash String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  ownedGames   Game[]       @relation("GameOwner")
-  gamePlayers  GamePlayer[]
+  id                         String          @id @default(cuid())
+  username                   String          @unique
+  email                      String          @unique
+  passwordHash               String
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
+  ownedGames                 Game[]          @relation("GameOwner")
+  gamePlayers                GamePlayer[]
+  sentFriendRequests         FriendRequest[] @relation("SentFriendRequests")
+  receivedFriendRequests     FriendRequest[] @relation("ReceivedFriendRequests")
+  initiatedFriendships       Friendship[]    @relation("FriendshipUser")
+  acceptedFriendships        Friendship[]    @relation("FriendshipFriend")
 }
 
 model Game {
@@ -101,4 +105,26 @@ model Turn {
   updatedAt  DateTime    @updatedAt
   game       Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
   player     GamePlayer? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+}
+
+model FriendRequest {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  createdAt  DateTime @default(now())
+  sender     User     @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userId    String
+  friendId  String
+  createdAt DateTime @default(now())
+  user      User     @relation("FriendshipUser", fields: [userId], references: [id], onDelete: Cascade)
+  friend    User     @relation("FriendshipFriend", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
 }

@@ -19,6 +19,14 @@ type ScoreCardBlockProps = {
 
 const upperScoreCategorySet = new Set<ScoreCategory>(upperScoreCategories);
 const lowerScoreCategories = scoreCategories.filter((category) => !upperScoreCategorySet.has(category));
+const upperCategoryDivisors: Partial<Record<ScoreCategory, number>> = {
+  fives: 5,
+  fours: 4,
+  ones: 1,
+  sixes: 6,
+  threes: 3,
+  twos: 2
+};
 
 function CategoryRow({
   category,
@@ -31,6 +39,9 @@ function CategoryRow({
 }) {
   const value = scoreCard[category];
   const open = value === null || value === undefined;
+  const divisor = upperCategoryDivisors[category];
+  const displayedValue =
+    !open && divisor ? `${value} (${Math.floor(value / divisor)})` : value;
 
   return (
     <div
@@ -60,7 +71,7 @@ function CategoryRow({
             : "bg-white/80 text-slate-700 dark:bg-white/10 dark:text-zinc-300"
         )}
       >
-        {open ? "frei" : value}
+        {open ? "frei" : displayedValue}
       </span>
     </div>
   );
@@ -119,13 +130,14 @@ export function ScoreCardBlock({ className, compact = false, scoreCard }: ScoreC
   const upperScore = getUpperSectionScore(scoreCard);
   const lowerScore = getLowerSectionScore(scoreCard);
   const total = scoreCard.total ?? upperScore + lowerScore + (scoreCard.upperBonus ?? 0);
+  const bonusStatus = upperScore >= 63 ? "+35 Bonus" : `-${63 - upperScore} bis Bonus`;
 
   return (
     <div className={cn("grid gap-4", className)}>
       <div className="grid grid-cols-3 gap-2">
         {[
           ["Gesamt", total],
-          ["Oben", `${upperScore}/63`],
+          ["Bonus", bonusStatus],
           ["Frei", openCount]
         ].map(([label, value]) => (
           <div

@@ -7,11 +7,7 @@ import { WifiOff } from "lucide-react";
 import { GameLobby } from "@/components/game/GameLobby";
 import { GameTurnScreen } from "@/components/game/GameTurnScreen";
 import { Alert } from "@/components/ui/Alert";
-import {
-  getCurrentUserScoreCard,
-  getPlayerByUserId,
-  isUserTurn
-} from "@/game/game-state";
+import { getPlayerByUserId, isUserTurn } from "@/game/game-state";
 import type { GameState } from "@/game/state";
 
 type GameViewProps = {
@@ -20,6 +16,8 @@ type GameViewProps = {
   error?: string;
   initialState: GameState;
   inviteLink: string;
+  movePlayerAction: (playerId: string, direction: "up" | "down") => void | Promise<void>;
+  restartGameAction: () => void | Promise<void>;
   startGameAction: () => void | Promise<void>;
 };
 
@@ -29,18 +27,16 @@ export function GameView({
   error,
   initialState,
   inviteLink,
+  movePlayerAction,
+  restartGameAction,
   startGameAction
 }: GameViewProps) {
   const [state, setState] = useState(initialState);
   const [pollError, setPollError] = useState<string | null>(null);
-  const [turnModeOpen, setTurnModeOpen] = useState(() =>
-    isUserTurn(initialState, currentUserId)
-  );
+  const [turnModeOpen, setTurnModeOpen] = useState(() => initialState.status === "ACTIVE");
   const fetchingRef = useRef(false);
   const wasCurrentUserTurn = useRef(isUserTurn(initialState, currentUserId));
   const currentUserPlayer = getPlayerByUserId(state, currentUserId);
-  const currentUserScoreCard = getCurrentUserScoreCard(state, currentUserId);
-  const currentUserTurn = isUserTurn(state, currentUserId);
 
   useEffect(() => {
     let active = true;
@@ -71,6 +67,10 @@ export function GameView({
         setState(nextState);
         setPollError(null);
 
+        if (nextState.status === "ACTIVE" && state.status !== "ACTIVE") {
+          setTurnModeOpen(true);
+        }
+
         if (!wasCurrentUserTurn.current && nextIsCurrentUserTurn) {
           setTurnModeOpen(true);
         }
@@ -95,7 +95,7 @@ export function GameView({
       active = false;
       window.clearInterval(intervalId);
     };
-  }, [currentUserId, initialState.gameId]);
+  }, [currentUserId, initialState.gameId, state.status]);
 
   return (
     <>
@@ -114,19 +114,21 @@ export function GameView({
         {!currentUserPlayer ? <Alert variant="danger">Nicht in dieser Runde.</Alert> : null}
       </div>
 
-      {currentUserTurn && turnModeOpen && currentUserPlayer && currentUserScoreCard ? (
+      {state.status === "ACTIVE" && turnModeOpen && currentUserPlayer ? (
         <GameTurnScreen
-          currentUserPlayer={currentUserPlayer}
+          currentUserId={currentUserId}
           enterScoreAction={enterScoreAction}
           onBackToLobby={() => setTurnModeOpen(false)}
           onSaved={() => setTurnModeOpen(false)}
-          scoreCard={currentUserScoreCard}
+          state={state}
         />
       ) : (
         <GameLobby
           currentUserId={currentUserId}
           inviteLink={inviteLink}
+          movePlayerAction={movePlayerAction}
           onOpenTurn={() => setTurnModeOpen(true)}
+          restartGameAction={restartGameAction}
           startGameAction={startGameAction}
           state={state}
         />

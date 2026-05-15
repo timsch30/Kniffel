@@ -5,6 +5,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   ChevronRight,
   Clipboard,
   Crown,
@@ -40,7 +42,9 @@ import { cn } from "@/lib/cn";
 type GameLobbyProps = {
   currentUserId: string;
   inviteLink: string;
+  movePlayerAction: (playerId: string, direction: "up" | "down") => void | Promise<void>;
   onOpenTurn: () => void;
+  restartGameAction: () => void | Promise<void>;
   startGameAction: () => void | Promise<void>;
   state: GameState;
 };
@@ -129,7 +133,9 @@ function MenuCard({
 export function GameLobby({
   currentUserId,
   inviteLink,
+  movePlayerAction,
   onOpenTurn,
+  restartGameAction,
   startGameAction,
   state
 }: GameLobbyProps) {
@@ -195,14 +201,42 @@ export function GameLobby({
             <div className="grid h-10 w-10 place-items-center rounded-lg bg-white text-amber-700 shadow-sm dark:bg-white/10 dark:text-amber-100">
               <Trophy aria-hidden="true" className="h-5 w-5" />
             </div>
-            <div className="grid gap-3">
+            <div className="grid flex-1 gap-3">
               <p className="text-sm leading-6 text-amber-950 dark:text-amber-50">
                 Gewinner: <span className="font-semibold">{state.winner.displayName}</span> mit{" "}
                 <span className="font-semibold">{state.winner.total}</span> Punkten.
               </p>
-              <Link className={buttonVariants("secondary")} href="/dashboard">
-                Zum Dashboard
-              </Link>
+              <div className="grid gap-2">
+                {state.ranking.map((entry) => (
+                  <div
+                    className={cn(
+                      "flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm",
+                      entry.rank === 1
+                        ? "bg-white font-semibold text-amber-950 shadow-sm dark:bg-white/10 dark:text-amber-50"
+                        : "bg-amber-100/70 text-amber-950 dark:bg-white/5 dark:text-amber-50"
+                    )}
+                    key={entry.playerId}
+                  >
+                    <span className="min-w-0 truncate">
+                      Platz {entry.rank}: {entry.displayName}
+                    </span>
+                    <span className="shrink-0 tabular-nums">{entry.total}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {isOwner ? (
+                  <form action={restartGameAction}>
+                    <SubmitButton pendingLabel="Startet neu...">
+                      <RotateCw aria-hidden="true" className="h-4 w-4" />
+                      Neue Runde
+                    </SubmitButton>
+                  </form>
+                ) : null}
+                <Link className={buttonVariants("secondary")} href="/dashboard">
+                  Zum Dashboard
+                </Link>
+              </div>
             </div>
           </div>
         </section>
@@ -237,9 +271,9 @@ export function GameLobby({
                 ) : null}
               </div>
 
-              {userTurn ? (
+                {state.status === "ACTIVE" ? (
                 <Button className="min-h-12 w-full sm:w-fit" onClick={onOpenTurn} type="button">
-                  Zug oeffnen
+                  Spielmodus oeffnen
                 </Button>
               ) : null}
             </section>
@@ -281,16 +315,54 @@ export function GameLobby({
                   </span>
                 </Alert>
               )}
+
+              <div className="grid gap-2">
+                {state.players.map((player, index) => (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/85 px-3 py-2 dark:border-white/10 dark:bg-white/5"
+                    key={player.id}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">
+                        Position {player.position}
+                      </p>
+                      <p className="truncate font-semibold text-ink dark:text-zinc-50">
+                        {player.displayName}
+                      </p>
+                    </div>
+                    {isOwner ? (
+                      <div className="flex gap-2">
+                        <form action={movePlayerAction.bind(null, player.id, "up")}>
+                          <Button
+                            aria-label={`${player.displayName} nach oben`}
+                            disabled={index === 0}
+                            size="sm"
+                            type="submit"
+                            variant="secondary"
+                          >
+                            <ArrowUp aria-hidden="true" className="h-4 w-4" />
+                          </Button>
+                        </form>
+                        <form action={movePlayerAction.bind(null, player.id, "down")}>
+                          <Button
+                            aria-label={`${player.displayName} nach unten`}
+                            disabled={index === state.players.length - 1}
+                            size="sm"
+                            type="submit"
+                            variant="secondary"
+                          >
+                            <ArrowDown aria-hidden="true" className="h-4 w-4" />
+                          </Button>
+                        </form>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </section>
           ) : null}
 
           <section className="grid gap-3 sm:grid-cols-2">
-            <MenuCard
-              icon={UsersRound}
-              meta={`${state.players.length} Spieler`}
-              onClick={() => setView("players")}
-              title="Mitspieler"
-            />
             <MenuCard
               icon={Trophy}
               meta={leader ? `${leader.displayName}: ${leader.total}` : "Noch keine Fuehrung"}
@@ -332,7 +404,7 @@ export function GameLobby({
 
           {view === "players" ? (
             <div className="grid gap-2">
-              {state.players.map((player) => {
+              {state.players.map((player, index) => {
                 const active = player.id === state.currentPlayerId;
                 const own = player.id === currentUserPlayer?.id;
 
@@ -357,6 +429,32 @@ export function GameLobby({
                         {active ? "am Zug" : own ? "du" : "wartet"}
                       </Badge>
                     </div>
+                    {isOwner && state.status === "LOBBY" ? (
+                      <div className="mt-3 flex gap-2">
+                        <form action={movePlayerAction.bind(null, player.id, "up")}>
+                          <Button
+                            aria-label={`${player.displayName} nach oben`}
+                            disabled={index === 0}
+                            size="sm"
+                            type="submit"
+                            variant="secondary"
+                          >
+                            <ArrowUp aria-hidden="true" className="h-4 w-4" />
+                          </Button>
+                        </form>
+                        <form action={movePlayerAction.bind(null, player.id, "down")}>
+                          <Button
+                            aria-label={`${player.displayName} nach unten`}
+                            disabled={index === state.players.length - 1}
+                            size="sm"
+                            type="submit"
+                            variant="secondary"
+                          >
+                            <ArrowDown aria-hidden="true" className="h-4 w-4" />
+                          </Button>
+                        </form>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

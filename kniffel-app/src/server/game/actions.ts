@@ -281,6 +281,187 @@ export async function startGameAction(gameId: string): Promise<void> {
   redirect(`/games/${game.id}`);
 }
 
+export async function movePlayerAction(
+  gameId: string,
+  playerId: string,
+  direction: "up" | "down"
+): Promise<void> {
+  const user = await requireCurrentUser();
+  const errorPath = `/games/${gameId}`;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            orderBy: {
+              position: "asc"
+            },
+            select: {
+              id: true,
+              position: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.ownerId !== user.id) {
+        throw new Error("Nur der Owner kann die Reihenfolge aendern.");
+      }
+
+      if (game.status !== "LOBBY") {
+        throw new Error("Reihenfolge kann nur in der Lobby geaendert werden.");
+      }
+
+      const currentIndex = game.players.findIndex((player) => player.id === playerId);
+      const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      const currentPlayer = game.players[currentIndex];
+      const targetPlayer = game.players[targetIndex];
+
+      if (!currentPlayer || !targetPlayer) {
+        return;
+      }
+
+      const temporaryPosition =
+        game.players.reduce(
+          (highestPosition, player) => Math.max(highestPosition, player.position),
+          0
+        ) + 1000;
+
+      await tx.gamePlayer.update({
+        data: {
+          position: temporaryPosition
+        },
+        where: {
+          id: currentPlayer.id
+        }
+      });
+
+      await tx.gamePlayer.update({
+        data: {
+          position: currentPlayer.position
+        },
+        where: {
+          id: targetPlayer.id
+        }
+      });
+
+      await tx.gamePlayer.update({
+        data: {
+          position: targetPlayer.position
+        },
+        where: {
+          id: currentPlayer.id
+        }
+      });
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Reihenfolge konnte nicht geaendert werden.";
+
+    redirectWithError(errorPath, message);
+  }
+
+  redirect(errorPath);
+}
+
+export async function restartGameAction(gameId: string): Promise<void> {
+  const user = await requireCurrentUser();
+  const errorPath = `/games/${gameId}`;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            orderBy: {
+              position: "asc"
+            },
+            select: {
+              id: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.ownerId !== user.id) {
+        throw new Error("Nur der Owner kann die Runde neu starten.");
+      }
+
+      if (game.status !== "FINISHED") {
+        throw new Error("Nur beendete Runden koennen neu gestartet werden.");
+      }
+
+      const firstPlayer = game.players[0];
+
+      if (!firstPlayer) {
+        throw new Error("Keine Spieler vorhanden.");
+      }
+
+      await tx.scoreCard.updateMany({
+        data: {
+          chance: null,
+          fives: null,
+          fourOfAKind: null,
+          fours: null,
+          fullHouse: null,
+          kniffel: null,
+          largeStraight: null,
+          ones: null,
+          sixes: null,
+          smallStraight: null,
+          threeOfAKind: null,
+          threes: null,
+          total: null,
+          twos: null,
+          upperBonus: null
+        },
+        where: {
+          gameId: game.id
+        }
+      });
+
+      await tx.turn.deleteMany({
+        where: {
+          gameId: game.id
+        }
+      });
+
+      await tx.game.update({
+        data: {
+          currentPlayerId: firstPlayer.id,
+          roundNumber: 1,
+          status: "ACTIVE"
+        },
+        where: {
+          id: game.id
+        }
+      });
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Runde konnte nicht neu gestartet werden.";
+
+    redirectWithError(errorPath, message);
+  }
+
+  redirect(errorPath);
+}
+
 export async function enterScoreAction(gameId: string, formData: FormData): Promise<void> {
   const user = await requireCurrentUser();
   const errorPath = `/games/${gameId}`;

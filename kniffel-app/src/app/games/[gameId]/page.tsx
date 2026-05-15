@@ -4,7 +4,12 @@ import { headers } from "next/headers";
 import { GameView } from "@/components/game/GameView";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { requireCurrentUser } from "@/server/auth/session";
-import { enterScoreAction, startGameAction } from "@/server/game/actions";
+import {
+  enterScoreAction,
+  movePlayerAction,
+  restartGameAction,
+  startGameAction
+} from "@/server/game/actions";
 import { getGameState } from "@/server/game/state";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +40,8 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
   const inviteLink = host ? `${protocol}://${host}${joinPath}` : joinPath;
   const boundStartGameAction = startGameAction.bind(null, initialState.gameId);
   const boundEnterScoreAction = enterScoreAction.bind(null, initialState.gameId);
+  const boundMovePlayerAction = movePlayerAction.bind(null, initialState.gameId);
+  const boundRestartGameAction = restartGameAction.bind(null, initialState.gameId);
 
   return (
     <PageContainer className="grid gap-4 sm:gap-5" size="xl">
@@ -44,6 +51,8 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
         error={error}
         initialState={initialState}
         inviteLink={inviteLink}
+        movePlayerAction={boundMovePlayerAction}
+        restartGameAction={boundRestartGameAction}
         startGameAction={boundStartGameAction}
       />
     </PageContainer>

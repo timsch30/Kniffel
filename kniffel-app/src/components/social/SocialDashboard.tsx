@@ -21,10 +21,12 @@ import { Leaderboard } from "@/components/social/Leaderboard";
 import { MetricTile } from "@/components/social/MetricTile";
 import { PlayerProfileCard } from "@/components/social/PlayerProfileCard";
 import { RecentGames } from "@/components/social/RecentGames";
+import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
-import { currentPlayer, mockFriends, mockGames, pendingFriends } from "@/social/mock-data";
+import type { SocialState } from "@/server/social/state";
+import { currentPlayer, mockFriends, mockGames } from "@/social/mock-data";
 import {
   calculateAchievements,
   calculateHeadToHeadStats,
@@ -36,6 +38,13 @@ import {
 import type { Friend, Player, PlayerId } from "@/social/types";
 
 type SocialDashboardProps = {
+  acceptFriendRequestAction: (requestId: string) => void | Promise<void>;
+  declineFriendRequestAction: (requestId: string) => void | Promise<void>;
+  error?: string;
+  removeFriendAction: (friendId: string) => void | Promise<void>;
+  sendFriendRequestAction: (formData: FormData) => void | Promise<void>;
+  socialState: SocialState;
+  userId: string;
   userName: string;
 };
 
@@ -48,23 +57,50 @@ const tabs: { icon: typeof BarChart3; id: TabId; label: string }[] = [
   { icon: UserRound, id: "profile", label: "Profil" }
 ];
 
+const fallbackFriend: Friend = {
+  color: "bg-slate-600 text-white",
+  favoriteCategory: "Offen",
+  id: "fallback",
+  initials: "--",
+  lastActiveAt: new Date(0).toISOString(),
+  name: "Offen",
+  relationshipStatus: "accepted"
+};
+
 function getFriendStats(friend: Friend) {
   return calculatePlayerStats(mockGames, friend.id);
 }
 
-export function SocialDashboard({ userName }: SocialDashboardProps) {
+export function SocialDashboard({
+  acceptFriendRequestAction,
+  declineFriendRequestAction,
+  error,
+  removeFriendAction,
+  sendFriendRequestAction,
+  socialState,
+  userId,
+  userName
+}: SocialDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const [selectedFriendId, setSelectedFriendId] = useState<PlayerId>(mockFriends[0]?.id ?? "");
+  const [selectedFriendId, setSelectedFriendId] = useState<PlayerId>(
+    socialState.friends[0]?.id ?? mockFriends[0]?.id ?? ""
+  );
 
   const user = useMemo<Player>(
     () => ({
       ...currentPlayer,
+      id: userId,
       name: userName || currentPlayer.name
     }),
-    [userName]
+    [userId, userName]
   );
-  const players = useMemo<Player[]>(() => [user, ...mockFriends], [user]);
-  const selectedFriend = mockFriends.find((friend) => friend.id === selectedFriendId) ?? mockFriends[0];
+  const friends = socialState.friends;
+  const statsFriends = friends.length > 0 ? friends : mockFriends;
+  const players = useMemo<Player[]>(() => [user, ...statsFriends], [statsFriends, user]);
+  const selectedFriend =
+    statsFriends.find((friend) => friend.id === selectedFriendId) ??
+    statsFriends[0] ??
+    fallbackFriend;
   const userStats = useMemo(() => calculatePlayerStats(mockGames, user.id), [user.id]);
   const selectedFriendStats = useMemo(
     () => calculatePlayerStats(mockGames, selectedFriend.id),
@@ -81,6 +117,8 @@ export function SocialDashboard({ userName }: SocialDashboardProps) {
 
   return (
     <div className="grid gap-5">
+      {error ? <Alert variant="danger">{error}</Alert> : null}
+
       <section className="grid gap-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="grid gap-2">
@@ -151,11 +189,16 @@ export function SocialDashboard({ userName }: SocialDashboardProps) {
             <HeadToHeadCard friend={selectedFriend} stats={headToHead} user={user} />
           </div>
           <div className="grid gap-4">
-            <FriendList
-              friends={mockFriends}
+              <FriendList
+              acceptFriendRequestAction={acceptFriendRequestAction}
+              declineFriendRequestAction={declineFriendRequestAction}
+              friends={friends}
+              incomingRequests={socialState.incomingRequests}
               onSelect={setSelectedFriendId}
-              pendingCount={pendingFriends.length}
-              selectedFriendId={selectedFriend.id}
+              outgoingRequests={socialState.outgoingRequests}
+              removeFriendAction={removeFriendAction}
+              selectedFriendId={selectedFriend?.id ?? ""}
+              sendFriendRequestAction={sendFriendRequestAction}
             />
             <RecentGames games={recentGames} players={players} />
           </div>
@@ -170,10 +213,15 @@ export function SocialDashboard({ userName }: SocialDashboardProps) {
           transition={{ duration: 0.2 }}
         >
           <FriendList
-            friends={mockFriends}
+            acceptFriendRequestAction={acceptFriendRequestAction}
+            declineFriendRequestAction={declineFriendRequestAction}
+            friends={friends}
+            incomingRequests={socialState.incomingRequests}
             onSelect={setSelectedFriendId}
-            pendingCount={pendingFriends.length}
-            selectedFriendId={selectedFriend.id}
+            outgoingRequests={socialState.outgoingRequests}
+            removeFriendAction={removeFriendAction}
+            selectedFriendId={selectedFriend?.id ?? ""}
+            sendFriendRequestAction={sendFriendRequestAction}
           />
           <div className="grid gap-4">
             <PlayerProfileCard label="Freundesprofil" player={selectedFriend} stats={selectedFriendStats} />
