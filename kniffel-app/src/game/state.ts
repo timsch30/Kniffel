@@ -1,0 +1,52 @@
+import type { ScoreCard } from "@/game/types";
+
+export type GameStatePlayer = {
+  displayName: string;
+  id: string;
+  position: number;
+  userId: string | null;
+};
+
+export type GameStateScoreCard = ScoreCard & {
+  id: string;
+  playerId: string;
+  total: number | null;
+  upperBonus: number | null;
+};
+
+export type GameStateRankingEntry = {
+  displayName: string;
+  isCurrentPlayer: boolean;
+  playerId: string;
+  position: number;
+  rank: number;
+  total: number;
+};
+
+export type GameStateWinner = {
+  displayName: string;
+  playerId: string;
+  total: number;
+} | null;
+
+export type GameStateLastAction = {
+  createdAt: string;
+  diceValues: number[];
+  displayName: string;
+} | null;
+
+export type GameState = {
+  currentPlayerId: string | null;
+  currentPlayerName: string | null;
+  gameId: string;
+  inviteCode: string;
+  lastAction: GameStateLastAction;
+  name: string;
+  ownerId: string;
+  players: GameStatePlayer[];
+  ranking: GameStateRankingEntry[];
+  roundNumber: number;
+  scoreCards: GameStateScoreCard[];
+  status: string;
+  winner: GameStateWinner;
+};

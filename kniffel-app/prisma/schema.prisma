@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum GameStatus {
+  LOBBY
+  ACTIVE
+  FINISHED
+}
+
+enum TurnStatus {
+  ACTIVE
+  FINISHED
+}
+
+model User {
+  id           String       @id @default(cuid())
+  username     String       @unique
+  email        String       @unique
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  ownedGames   Game[]       @relation("GameOwner")
+  gamePlayers  GamePlayer[]
+}
+
+model Game {
+  id              String       @id @default(cuid())
+  ownerId         String
+  name            String
+  inviteCode      String       @unique
+  status          GameStatus   @default(LOBBY)
+  currentPlayerId String?
+  roundNumber     Int          @default(1)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  owner           User         @relation("GameOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  currentPlayer   GamePlayer?  @relation("CurrentGamePlayer", fields: [currentPlayerId], references: [id], onDelete: SetNull)
+  players         GamePlayer[] @relation("GamePlayers")
+  scoreCards      ScoreCard[]
+  turns           Turn[]
+}
+
+model GamePlayer {
+  id             String      @id @default(cuid())
+  gameId         String
+  userId         String?
+  displayName    String
+  position       Int
+  createdAt      DateTime    @default(now())
+  game           Game        @relation("GamePlayers", fields: [gameId], references: [id], onDelete: Cascade)
+  user           User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  scoreCards     ScoreCard[]
+  turns          Turn[]
+  currentInGames Game[]      @relation("CurrentGamePlayer")
+
+  @@unique([gameId, position])
+}
+
+model ScoreCard {
+  id              String     @id @default(cuid())
+  gameId          String
+  playerId        String
+  ones            Int?
+  twos            Int?
+  threes          Int?
+  fours           Int?
+  fives           Int?
+  sixes           Int?
+  threeOfAKind    Int?
+  fourOfAKind     Int?
+  fullHouse       Int?
+  smallStraight   Int?
+  largeStraight   Int?
+  kniffel         Int?
+  chance          Int?
+  upperBonus      Int?
+  total           Int?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  game            Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player          GamePlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, playerId])
+}
+
+model Turn {
+  id         String      @id @default(cuid())
+  gameId     String
+  playerId   String?
+  diceValues Json        @default("[]")
+  heldDice   Json        @default("[]")
+  rollCount  Int         @default(0)
+  status     TurnStatus  @default(ACTIVE)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  game       Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player     GamePlayer? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+}
