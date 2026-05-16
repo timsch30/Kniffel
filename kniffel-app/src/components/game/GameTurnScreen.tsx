@@ -31,6 +31,7 @@ export function GameTurnScreen({
 }: GameTurnScreenProps) {
   const [entryOpen, setEntryOpen] = useState(false);
   const playerCardRefs = useRef<Record<string, HTMLElement | null>>({});
+  const playerRowRef = useRef<HTMLDivElement | null>(null);
   const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
@@ -48,11 +49,17 @@ export function GameTurnScreen({
 
     previousCurrentPlayerIdRef.current = state.currentPlayerId;
     const activeCard = playerCardRefs.current[state.currentPlayerId];
+    const playerRow = playerRowRef.current;
 
-    activeCard?.scrollIntoView({
+    if (!activeCard || !playerRow) {
+      return;
+    }
+
+    const nextLeft = activeCard.offsetLeft - playerRow.offsetLeft;
+
+    playerRow.scrollTo({
       behavior: "smooth",
-      block: "nearest",
-      inline: "start"
+      left: nextLeft
     });
   }, [state.currentPlayerId]);
 
@@ -84,7 +91,10 @@ export function GameTurnScreen({
           </div>
         </div>
 
-        <div className="-mx-4 overflow-x-auto px-4 pb-3 [scroll-snap-type:x_mandatory] sm:mx-0 sm:px-0">
+        <div
+          className="-mx-4 overflow-x-auto px-4 pb-3 [scroll-snap-type:x_mandatory] sm:mx-0 sm:px-0"
+          ref={playerRowRef}
+        >
           <div className="flex gap-4">
             {state.players.map((player) => {
               const scoreCard = getPlayerScoreCard(state, player.id);
