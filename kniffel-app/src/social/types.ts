@@ -12,7 +12,9 @@ export type FriendStatus = "accepted" | "incoming" | "outgoing";
 
 export type Friend = Player & {
   favoriteCategory: string;
+  isOnline: boolean;
   lastActiveAt: string;
+  lastSeenAt: string | null;
   relationshipStatus: FriendStatus;
 };
 

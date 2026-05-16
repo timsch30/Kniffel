@@ -36,7 +36,7 @@ export function HeaderContent({
         className
       )}
     >
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_1fr_auto] sm:px-6">
         <Link
           aria-label="Kniffel Online Startseite"
           className="group inline-flex min-h-10 items-center gap-2 rounded-lg text-sm font-semibold text-ink outline-none transition-colors hover:text-felt dark:text-zinc-50 dark:hover:text-emerald-200"
@@ -47,9 +47,12 @@ export function HeaderContent({
           </span>
           <span>Kniffel Online</span>
         </Link>
-        <nav aria-label="Hauptnavigation" className="flex flex-wrap items-center gap-1.5">
-          {isAuthenticated ? (
-            <>
+        {isAuthenticated ? (
+          <>
+            <nav
+              aria-label="Hauptnavigation"
+              className="col-span-2 row-start-2 flex flex-wrap items-center gap-1.5 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-end"
+            >
               <Link className={buttonVariants("ghost", "sm")} href="/dashboard">
                 <LayoutDashboard aria-hidden="true" className="h-4 w-4" />
                 Dashboard
@@ -62,20 +65,29 @@ export function HeaderContent({
                 <Plus aria-hidden="true" className="h-4 w-4" />
                 Neue Runde
               </Link>
+            </nav>
+            <div className="col-start-2 row-start-1 justify-self-end sm:col-start-3">
               <form action={logoutAction}>
-                <button className={buttonVariants("ghost", "sm")} type="submit">
+                <button
+                  aria-label="Abmelden"
+                  className={cn(buttonVariants("ghost", "sm"), "w-9 px-0 sm:w-auto sm:px-3")}
+                  title="Abmelden"
+                  type="submit"
+                >
                   <LogOut aria-hidden="true" className="h-4 w-4" />
-                  Abmelden
+                  <span className="hidden sm:inline">Abmelden</span>
                 </button>
               </form>
-            </>
-          ) : (
+            </div>
+          </>
+        ) : (
+          <div className="col-start-2 row-start-1 justify-self-end sm:col-start-3">
             <Link className={buttonVariants("secondary", "sm")} href="/login">
               <LogIn aria-hidden="true" className="h-4 w-4" />
               Login
             </Link>
-          )}
-        </nav>
+          </div>
+        )}
       </div>
     </header>
   );
