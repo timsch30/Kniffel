@@ -64,6 +64,7 @@ export function GameView({
     }
 
     wasCurrentUserTurn.current = nextIsCurrentUserTurn;
+    return nextState;
   }, [currentUserId, initialState.gameId, state.status]);
 
   useEffect(() => {
@@ -122,7 +123,22 @@ export function GameView({
           enterScoreAction={enterScoreAction}
           onBackToLobby={() => setTurnModeOpen(false)}
           onSaved={() => {
-            void refreshState();
+            const currentPlayerIdBeforeSave = state.currentPlayerId;
+
+            void (async () => {
+              let refreshedState = await refreshState();
+
+              for (let attempt = 0; attempt < 4; attempt += 1) {
+                if (refreshedState.currentPlayerId !== currentPlayerIdBeforeSave) {
+                  break;
+                }
+
+                await new Promise((resolve) => {
+                  window.setTimeout(resolve, 350);
+                });
+                refreshedState = await refreshState();
+              }
+            })();
           }}
           state={state}
         />
