@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Calculator, CheckCircle2, PencilLine, Save, Sparkles } from "lucide-react";
 
@@ -40,6 +40,7 @@ export function ScoreEntryForm({
   const [selectedCategory, setSelectedCategory] = useState<ScoreCategory | null>(null);
   const suggestionsSectionRef = useRef<HTMLElement | null>(null);
   const previousDiceCountRef = useRef(0);
+  const lastShakeAtRef = useRef(0);
   const [heldDice, setHeldDice] = useState<boolean[]>([false, false, false, false, false]);
   const [rollCount, setRollCount] = useState(initialDiceValues.length === 5 ? 1 : 0);
 
@@ -63,7 +64,7 @@ export function ScoreEntryForm({
     });
   }, [initialDiceValues]);
 
-  function rollDice() {
+  const rollDice = useCallback(() => {
     if (rollCount >= 3) {
       return;
     }
@@ -73,7 +74,7 @@ export function ScoreEntryForm({
       return values.map((value, index) => (heldDice[index] ? value : Math.floor(Math.random() * 6) + 1));
     });
     setRollCount((previous) => previous + 1);
-  }
+  }, [heldDice, rollCount]);
 
   function toggleHeld(index: number) {
     if (rollCount === 0) {
@@ -82,6 +83,33 @@ export function ScoreEntryForm({
 
     setHeldDice((previous) => previous.map((held, position) => (position === index ? !held : held)));
   }
+
+  useEffect(() => {
+    if (!onlineRollMode || mode !== "dice") {
+      return;
+    }
+
+    function handleDeviceMotion(event: DeviceMotionEvent) {
+      const acceleration = event.accelerationIncludingGravity;
+
+      if (!acceleration || rollCount >= 3) {
+        return;
+      }
+
+      const x = Math.abs(acceleration.x ?? 0);
+      const y = Math.abs(acceleration.y ?? 0);
+      const z = Math.abs(acceleration.z ?? 0);
+      const now = Date.now();
+
+      if (x + y + z > 30 && now - lastShakeAtRef.current > 900) {
+        lastShakeAtRef.current = now;
+        rollDice();
+      }
+    }
+
+    window.addEventListener("devicemotion", handleDeviceMotion);
+    return () => window.removeEventListener("devicemotion", handleDeviceMotion);
+  }, [mode, onlineRollMode, rollCount, rollDice]);
 
   function handleModeChange(nextMode: EntryMode) {
     setMode(nextMode);
@@ -186,6 +214,9 @@ export function ScoreEntryForm({
               >
                 Wuerfeln
               </button>
+              <p className="text-xs text-slate-500 dark:text-zinc-400">
+                Tipp: Du kannst alternativ dein Handy schuetteln.
+              </p>
             </div>
           ) : (
             <DiceInput onChange={setDiceValues} values={diceValues} />
