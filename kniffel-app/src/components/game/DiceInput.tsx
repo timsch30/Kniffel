@@ -20,9 +20,11 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
   const [scanOpen, setScanOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanResult, setScanResult] = useState<number[]>([]);
+  const [scanProgress, setScanProgress] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const stableFramesRef = useRef<number[][]>([]);
   const progress = (values.length / maxDiceCount) * 100;
 
   function addValue(value: number) {
@@ -41,6 +43,8 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setScanOpen(false);
+    stableFramesRef.current = [];
+    setScanProgress(0);
   }, []);
 
   useEffect(() => {
@@ -70,6 +74,8 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
 
     setScanError(null);
     setScanResult([]);
+    setScanProgress(0);
+    stableFramesRef.current = [];
     setupCamera();
 
     return () => {
@@ -90,7 +96,8 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
     for (const value of brightness) {
       total += value;
     }
-    const threshold = Math.max(35, Math.round(total / brightness.length) - 40);
+    const mean = total / brightness.length;
+    const threshold = Math.max(30, Math.round(mean * 0.72));
     const visited = new Uint8Array(width * height);
     const queueX = new Int32Array(width * height);
     const queueY = new Int32Array(width * height);
@@ -137,7 +144,19 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
           }
         }
 
-        if (area >= 35 && area <= 2200) {
+        const componentWidth = Math.max(...queueX.slice(0, tail)) - Math.min(...queueX.slice(0, tail)) + 1;
+        const componentHeight =
+          Math.max(...queueY.slice(0, tail)) - Math.min(...queueY.slice(0, tail)) + 1;
+        const aspectRatio = componentWidth / componentHeight;
+        const minArea = Math.round((width * height) / 1100);
+        const maxArea = Math.round((width * height) / 40);
+
+        if (
+          area >= minArea &&
+          area <= maxArea &&
+          aspectRatio > 0.45 &&
+          aspectRatio < 1.8
+        ) {
           pips += 1;
         }
       }
@@ -180,6 +199,8 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
       if (!value) {
         setScanError("Bitte alle 5 Wuerfel sichtbar in einer Reihe ausrichten.");
         setScanResult([]);
+        stableFramesRef.current = [];
+        setScanProgress(0);
         return null;
       }
       detectedValues.push(value);
@@ -201,7 +222,39 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
         return;
       }
 
-      onChange(detectedValues);
+      stableFramesRef.current = [...stableFramesRef.current, detectedValues].slice(-6);
+
+      if (stableFramesRef.current.length < 3) {
+        setScanProgress(Math.min(60, stableFramesRef.current.length * 20));
+        return;
+      }
+
+      const votedValues = Array.from({ length: maxDiceCount }).map((_, slotIndex) => {
+        const counts = new Map<number, number>();
+        for (const frame of stableFramesRef.current) {
+          const value = frame[slotIndex];
+          counts.set(value, (counts.get(value) ?? 0) + 1);
+        }
+        return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
+      });
+
+      const consensusReached = votedValues.every((value, slotIndex) => {
+        let matches = 0;
+        for (const frame of stableFramesRef.current) {
+          if (frame[slotIndex] === value) {
+            matches += 1;
+          }
+        }
+        return matches >= 3;
+      });
+
+      if (!consensusReached) {
+        setScanProgress(80);
+        return;
+      }
+
+      setScanProgress(100);
+      onChange(votedValues);
       closeScanner();
     }, 800);
 
@@ -334,8 +387,16 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
                   {scanError}
                 </p>
               ) : null}
+              <div className="h-2 overflow-hidden rounded-full bg-slate-200/80 dark:bg-white/10">
+                <motion.div
+                  animate={{ width: `${scanProgress}%` }}
+                  className="h-full rounded-full bg-emerald-600 dark:bg-emerald-300"
+                  initial={false}
+                  transition={{ duration: 0.25, ease: "easeOut" }}
+                />
+              </div>
               <p className="text-xs text-slate-600 dark:text-zinc-400">
-                Halte alle 5 Wuerfel gleichzeitig im Bild. Sobald alle erkannt sind, schliesst sich der Scanner automatisch.
+                Halte alle 5 Wuerfel gleichzeitig im Bild. Wir pruefen mehrere Frames und uebernehmen erst bei stabiler Erkennung.
               </p>
             </div>
           </motion.div>
