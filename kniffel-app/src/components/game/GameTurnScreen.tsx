@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, FilePenLine, X } from "lucide-react";
+import { ArrowLeft, Dices, FilePenLine, Smartphone, X } from "lucide-react";
 
+import { Dice } from "@/components/game/Dice";
 import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
 import { ScoreEntryForm } from "@/components/game/ScoreEntryForm";
 import { Badge } from "@/components/ui/Badge";
@@ -30,10 +31,15 @@ export function GameTurnScreen({
   state
 }: GameTurnScreenProps) {
   const [entryOpen, setEntryOpen] = useState(false);
+  const [rollMode, setRollMode] = useState<"real" | "online">("online");
+  const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1, 1, 1]);
+  const [heldDice, setHeldDice] = useState<boolean[]>([false, false, false, false, false]);
+  const [rollCount, setRollCount] = useState(0);
   const playerCardRefs = useRef<Record<string, HTMLElement | null>>({});
   const playerRowRef = useRef<HTMLDivElement | null>(null);
   const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
   const hasInitialAutoScrollRef = useRef(false);
+  const lastShakeRef = useRef(0);
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
   const currentUserScoreCard = currentUserPlayer
@@ -42,6 +48,31 @@ export function GameTurnScreen({
   const userTurn = isUserTurn(state, currentUserId);
   const filledCount = getFilledCategoryCount(currentUserScoreCard);
   const total = currentUserScoreCard?.total ?? 0;
+
+  const rollDice = useCallback(() => {
+    if (rollCount >= 3) {
+      return;
+    }
+
+    setDiceValues((previous) =>
+      previous.map((value, index) => (heldDice[index] ? value : Math.floor(Math.random() * 6) + 1))
+    );
+    setRollCount((previous) => previous + 1);
+  }, [heldDice, rollCount]);
+
+  function resetDiceRound() {
+    setDiceValues([1, 1, 1, 1, 1]);
+    setHeldDice([false, false, false, false, false]);
+    setRollCount(0);
+  }
+
+  function toggleHeld(index: number) {
+    if (rollCount === 0) {
+      return;
+    }
+
+    setHeldDice((previous) => previous.map((held, position) => (position === index ? !held : held)));
+  }
 
   useEffect(() => {
     const playerChanged = previousCurrentPlayerIdRef.current !== state.currentPlayerId;
@@ -80,6 +111,33 @@ export function GameTurnScreen({
       window.cancelAnimationFrame(frameId);
     };
   }, [state.currentPlayerId]);
+
+  useEffect(() => {
+    if (!userTurn || rollMode !== "online") {
+      return;
+    }
+
+    function handleDeviceMotion(event: DeviceMotionEvent) {
+      const acceleration = event.accelerationIncludingGravity;
+
+      if (!acceleration) {
+        return;
+      }
+
+      const x = Math.abs(acceleration.x ?? 0);
+      const y = Math.abs(acceleration.y ?? 0);
+      const z = Math.abs(acceleration.z ?? 0);
+      const now = Date.now();
+
+      if (x + y + z > 32 && now - lastShakeRef.current > 1200) {
+        lastShakeRef.current = now;
+        rollDice();
+      }
+    }
+
+    window.addEventListener("devicemotion", handleDeviceMotion);
+    return () => window.removeEventListener("devicemotion", handleDeviceMotion);
+  }, [rollDice, rollMode, userTurn]);
 
   return (
     <section className="relative -mx-4 min-h-[100svh] bg-slate-50 px-4 pb-32 pt-3 sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-slate-200/80 sm:bg-white/70 sm:p-5 sm:pb-32 sm:shadow-card sm:backdrop-blur-xl dark:bg-zinc-950 dark:sm:border-white/10 dark:sm:bg-zinc-900/70 dark:sm:shadow-card-dark">
@@ -169,6 +227,66 @@ export function GameTurnScreen({
               Eintragen
             </Button>
           </div>
+
+          <div className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                className={cn("min-h-10", rollMode === "real" ? "" : "opacity-80")}
+                onClick={() => setRollMode("real")}
+                type="button"
+                variant={rollMode === "real" ? "primary" : "ghost"}
+              >
+                <Dices aria-hidden="true" className="h-4 w-4" />
+                Echte Wuerfel
+              </Button>
+              <Button
+                className={cn("min-h-10", rollMode === "online" ? "" : "opacity-80")}
+                onClick={() => setRollMode("online")}
+                type="button"
+                variant={rollMode === "online" ? "primary" : "ghost"}
+              >
+                <Smartphone aria-hidden="true" className="h-4 w-4" />
+                Online wuerfeln
+              </Button>
+            </div>
+
+            {rollMode === "online" ? (
+              <div className="grid gap-3">
+                <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">Wurf {rollCount}/3</p>
+                <div className="grid grid-cols-5 gap-2">
+                  {diceValues.map((value, index) => (
+                    <button
+                      className={cn(
+                        "rounded-xl border p-1",
+                        heldDice[index] ? "border-amber-300" : "border-transparent"
+                      )}
+                      key={`${value}-${index}-${heldDice[index] ? "held" : "open"}`}
+                      onClick={() => toggleHeld(index)}
+                      type="button"
+                    >
+                      <span className="sr-only">Wuerfel {index + 1} halten</span>
+                      <Dice held={heldDice[index]} value={value} />
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button disabled={rollCount >= 3} onClick={rollDice} type="button">
+                    Jetzt wuerfeln
+                  </Button>
+                  <Button onClick={resetDiceRound} type="button" variant="ghost">
+                    Zuruecksetzen
+                  </Button>
+                </div>
+                <Button onClick={() => setEntryOpen(true)} type="button" variant="secondary">
+                  In Eintragung wechseln
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs font-medium text-slate-500 dark:text-zinc-400">
+                Du wuerfelst mit echten Wuerfeln und kannst danach direkt eintragen.
+              </p>
+            )}
+          </div>
         </div>
       ) : null}
 
@@ -205,7 +323,9 @@ export function GameTurnScreen({
             <div className="mx-auto max-w-2xl px-4 py-5">
               <ScoreEntryForm
                 action={enterScoreAction}
+                initialDiceValues={rollMode === "online" && rollCount > 0 ? diceValues : []}
                 onSaved={() => {
+                  resetDiceRound();
                   setEntryOpen(false);
                   onSaved();
                 }}

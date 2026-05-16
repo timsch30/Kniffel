@@ -13,6 +13,7 @@ import type { ScoreCard, ScoreCategory } from "@/game/types";
 
 type ScoreEntryFormProps = {
   action: (formData: FormData) => void | Promise<void>;
+  initialDiceValues?: number[];
   onSaved?: () => void;
   scoreCard: ScoreCard;
 };
@@ -23,13 +24,22 @@ function isCategoryUsed(scoreCard: ScoreCard, category: ScoreCategory): boolean 
   return scoreCard[category] !== null && scoreCard[category] !== undefined;
 }
 
-export function ScoreEntryForm({ action, onSaved, scoreCard }: ScoreEntryFormProps) {
-  const [diceValues, setDiceValues] = useState<number[]>([]);
+export function ScoreEntryForm({
+  action,
+  initialDiceValues = [],
+  onSaved,
+  scoreCard
+}: ScoreEntryFormProps) {
+  const [diceValues, setDiceValues] = useState<number[]>(initialDiceValues);
   const [manualPoints, setManualPoints] = useState("");
   const [mode, setMode] = useState<EntryMode>("dice");
   const [selectedCategory, setSelectedCategory] = useState<ScoreCategory | null>(null);
   const suggestionsSectionRef = useRef<HTMLElement | null>(null);
   const previousDiceCountRef = useRef(0);
+
+  useEffect(() => {
+    setDiceValues(initialDiceValues);
+  }, [initialDiceValues]);
 
   function handleModeChange(nextMode: EntryMode) {
     setMode(nextMode);
