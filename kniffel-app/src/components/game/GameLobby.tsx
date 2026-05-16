@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { motion } from "framer-motion";
 import {
@@ -150,6 +150,37 @@ export function GameLobby({
   const canStart = isOwner && state.status === "LOBBY";
   const canStartNow = canStart && state.players.length >= 2;
   const userFilledCount = getFilledCategoryCount(currentUserScoreCard);
+
+  const playerBlockRefs = useRef<Record<string, HTMLDetailsElement | null>>({});
+  const previousCurrentPlayerIdRef = useRef<string | null>(currentPlayer?.id ?? null);
+
+  useEffect(() => {
+    const currentPlayerId = currentPlayer?.id ?? null;
+    const previousPlayerId = previousCurrentPlayerIdRef.current;
+
+    if (previousPlayerId === currentPlayerId) {
+      return;
+    }
+
+    previousCurrentPlayerIdRef.current = currentPlayerId;
+
+    if (view !== "blocks" || !currentPlayerId) {
+      return;
+    }
+
+    const target = playerBlockRefs.current[currentPlayerId];
+
+    if (!target) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    });
+  }, [currentPlayer?.id, view]);
 
   const detailHeader =
     view === "overview" ? null : (
@@ -509,6 +540,9 @@ export function GameLobby({
                     className="group rounded-lg border border-slate-200 bg-white/85 p-4 shadow-sm open:shadow-card dark:border-white/10 dark:bg-white/5 dark:open:shadow-card-dark"
                     key={player.id}
                     open={own}
+                    ref={(node) => {
+                      playerBlockRefs.current[player.id] = node;
+                    }}
                   >
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                       <div className="min-w-0">
