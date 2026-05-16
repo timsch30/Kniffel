@@ -48,19 +48,29 @@ export function GameTurnScreen({
     }
 
     previousCurrentPlayerIdRef.current = state.currentPlayerId;
-    const activeCard = playerCardRefs.current[state.currentPlayerId];
-    const playerRow = playerRowRef.current;
 
-    if (!activeCard || !playerRow) {
-      return;
-    }
+    const frameId = window.requestAnimationFrame(() => {
+      const activeCard = playerCardRefs.current[state.currentPlayerId];
+      const playerRow = playerRowRef.current;
 
-    const nextLeft = activeCard.offsetLeft - playerRow.offsetLeft;
+      if (!activeCard || !playerRow) {
+        return;
+      }
 
-    playerRow.scrollTo({
-      behavior: "smooth",
-      left: nextLeft
+      const rowRect = playerRow.getBoundingClientRect();
+      const cardRect = activeCard.getBoundingClientRect();
+      const deltaLeft = cardRect.left - rowRect.left;
+      const nextLeft = playerRow.scrollLeft + deltaLeft;
+
+      playerRow.scrollTo({
+        behavior: "smooth",
+        left: nextLeft
+      });
     });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
   }, [state.currentPlayerId]);
 
   return (
