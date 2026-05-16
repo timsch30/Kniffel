@@ -32,7 +32,6 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
         {error ? <Alert className="mb-4" variant="danger">{error}</Alert> : null}
         <form action={registerAction} className="grid gap-4">
           <Input autoComplete="username" label="Username" name="username" type="text" />
-          <Input autoComplete="email" label="E-Mail" name="email" type="email" />
           <Input
             autoComplete="new-password"
             description="Mindestens 8 Zeichen."

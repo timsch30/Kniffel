@@ -37,7 +37,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {error ? <Alert className="mb-4" variant="danger">{error}</Alert> : null}
         <form action={loginAction} className="grid gap-4">
           <input name="redirectTo" type="hidden" value={safeRedirectTo} />
-          <Input autoComplete="username" label="Username oder E-Mail" name="login" type="text" />
+          <Input autoComplete="username" label="Username" name="username" type="text" />
           <Input autoComplete="current-password" label="Passwort" name="password" type="password" />
           <SubmitButton pendingLabel="Melde an...">Einloggen</SubmitButton>
         </form>
