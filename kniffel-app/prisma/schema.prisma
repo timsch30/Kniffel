@@ -107,6 +107,7 @@ model ScoreCard {
   largeStraight Int?
   kniffel       Int?
   chance        Int?
+  struckCategories Json       @default("[]")
   upperBonus    Int?
   total         Int?
   createdAt     DateTime   @default(now())

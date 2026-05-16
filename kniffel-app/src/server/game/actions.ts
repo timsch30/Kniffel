@@ -9,7 +9,8 @@ import {
   determineNextPlayer,
   isCategoryFilled,
   isScoreCategory,
-  updateScoreCard
+  updateScoreCard,
+  updateStruckCategories
 } from "@/game/scorecard";
 import { assertValidDiceValues, calculateScoreForCategory } from "@/game/scoring";
 import { prisma } from "@/lib/prisma";
@@ -571,6 +572,7 @@ export async function restartGameAction(gameId: string): Promise<void> {
           ones: null,
           sixes: null,
           smallStraight: null,
+          struckCategories: [],
           threeOfAKind: null,
           threes: null,
           total: null,
@@ -694,10 +696,16 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
       }
 
       const nextScoreCard = updateScoreCard(scoreCard, categoryValue, points);
+      const struckCategories = updateStruckCategories(
+        scoreCard.struckCategories,
+        categoryValue,
+        points === 0
+      );
 
       const updatedScoreCard = await tx.scoreCard.update({
         data: {
           [categoryValue]: points,
+          struckCategories,
           total: nextScoreCard.total,
           upperBonus: nextScoreCard.upperBonus
         } as Prisma.ScoreCardUpdateInput,
