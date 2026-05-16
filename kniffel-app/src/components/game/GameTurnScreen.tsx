@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, FilePenLine, X } from "lucide-react";
+import { ArrowLeft, Dices, FilePenLine, Smartphone, X } from "lucide-react";
 
 import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
 import { ScoreEntryForm } from "@/components/game/ScoreEntryForm";
@@ -30,6 +30,8 @@ export function GameTurnScreen({
   state
 }: GameTurnScreenProps) {
   const [entryOpen, setEntryOpen] = useState(false);
+  const [rollMode, setRollMode] = useState<"real" | "online" | null>(null);
+  const [showRollModePicker, setShowRollModePicker] = useState(false);
   const [viewedPlayerId, setViewedPlayerId] = useState(
     () =>
       state.currentPlayerId ??
@@ -137,6 +139,12 @@ export function GameTurnScreen({
       window.cancelAnimationFrame(frameId);
     };
   }, [state.currentPlayerId]);
+
+  useEffect(() => {
+    if (userTurn && !rollMode) {
+      setShowRollModePicker(true);
+    }
+  }, [rollMode, userTurn]);
 
   useEffect(() => {
     if (state.players.some((player) => player.id === viewedPlayerId)) {
@@ -276,6 +284,7 @@ export function GameTurnScreen({
               Eintragen
             </Button>
           </div>
+
         </div>
       ) : null}
 
@@ -312,12 +321,50 @@ export function GameTurnScreen({
             <div className="mx-auto max-w-2xl px-4 py-5">
               <ScoreEntryForm
                 action={enterScoreAction}
+                onlineRollMode={rollMode === "online"}
                 onSaved={() => {
                   setEntryOpen(false);
                   onSaved();
                 }}
                 scoreCard={currentUserScoreCard}
               />
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showRollModePicker ? (
+          <motion.div
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[90] grid place-items-center bg-black/45 p-4"
+            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+          >
+            <div className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+              <button
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-slate-200 bg-white p-5 text-center text-ink shadow-xl transition-all hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:border-white/20"
+                onClick={() => {
+                  setRollMode("real");
+                  setShowRollModePicker(false);
+                }}
+                type="button"
+              >
+                <Dices className="mx-auto h-10 w-10 text-slate-700 dark:text-zinc-100" />
+                <span className="text-lg font-semibold">Echte Wuerfel</span>
+              </button>
+              <button
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-5 text-center text-emerald-950 shadow-xl transition-all hover:-translate-y-0.5 hover:border-emerald-400 dark:border-emerald-300/40 dark:bg-emerald-300/15 dark:text-emerald-50 dark:hover:border-emerald-300/70"
+                onClick={() => {
+                  setRollMode("online");
+                  setShowRollModePicker(false);
+                  setEntryOpen(true);
+                }}
+                type="button"
+              >
+                <Smartphone className="mx-auto h-10 w-10 text-emerald-700 dark:text-emerald-200" />
+                <span className="text-lg font-semibold">Online Wuerfel</span>
+              </button>
             </div>
           </motion.div>
         ) : null}
