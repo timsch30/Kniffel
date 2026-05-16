@@ -7,6 +7,8 @@ import {
 } from "@/game/scorecard";
 import type { Friend, Game, GameHighlight, PlayerGameResult } from "@/social/types";
 
+const ONLINE_THRESHOLD_MS = 30_000;
+
 export type SocialFriendRequest = {
   createdAt: string;
   id: string;
@@ -37,13 +39,24 @@ function colorForId(id: string): string {
   return colors[charSum % colors.length] ?? colors[0];
 }
 
-function toFriend(user: { id: string; updatedAt: Date; username: string }): Friend {
+function isOnline(lastSeenAt: Date | null): boolean {
+  return Boolean(lastSeenAt && Date.now() - lastSeenAt.getTime() <= ONLINE_THRESHOLD_MS);
+}
+
+function toFriend(user: {
+  id: string;
+  lastSeenAt: Date | null;
+  updatedAt: Date;
+  username: string;
+}): Friend {
   return {
     color: colorForId(user.id),
     favoriteCategory: "Offen",
     id: user.id,
     initials: initials(user.username),
-    lastActiveAt: user.updatedAt.toISOString(),
+    isOnline: isOnline(user.lastSeenAt),
+    lastActiveAt: (user.lastSeenAt ?? user.updatedAt).toISOString(),
+    lastSeenAt: user.lastSeenAt?.toISOString() ?? null,
     name: user.username,
     relationshipStatus: "accepted"
   };
@@ -158,6 +171,7 @@ export async function getSocialState(): Promise<SocialState> {
         friend: {
           select: {
             id: true,
+            lastSeenAt: true,
             updatedAt: true,
             username: true
           }
@@ -165,6 +179,7 @@ export async function getSocialState(): Promise<SocialState> {
         user: {
           select: {
             id: true,
+            lastSeenAt: true,
             updatedAt: true,
             username: true
           }
@@ -217,7 +232,13 @@ export async function getSocialState(): Promise<SocialState> {
         return [friend.id, toFriend(friend)];
       })
     ).values()
-  ];
+  ].sort((left, right) => {
+    if (left.isOnline !== right.isOnline) {
+      return left.isOnline ? -1 : 1;
+    }
+
+    return new Date(right.lastActiveAt).getTime() - new Date(left.lastActiveAt).getTime();
+  });
   const games = await getFinishedSocialGames([user.id, ...friends.map((friend) => friend.id)]);
 
   return {

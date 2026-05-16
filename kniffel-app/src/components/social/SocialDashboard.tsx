@@ -59,12 +59,14 @@ const tabs: { icon: typeof UsersRound; id: TabId; label: string }[] = [
   { icon: UserRound, id: "profile", label: "Profil" }
 ];
 
-const fallbackFriend: Friend = {
+  const fallbackFriend: Friend = {
   color: "bg-slate-600 text-white",
   favoriteCategory: "Offen",
   id: "fallback",
   initials: "--",
+  isOnline: false,
   lastActiveAt: new Date(0).toISOString(),
+  lastSeenAt: null,
   name: "Offen",
   relationshipStatus: "accepted"
 };

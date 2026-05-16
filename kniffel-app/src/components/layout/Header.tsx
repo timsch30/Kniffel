@@ -1,4 +1,6 @@
 import { HeaderContent } from "@/components/layout/HeaderContent";
+import { PresenceHeartbeat } from "@/components/layout/PresenceHeartbeat";
+import { PresenceNotifications } from "@/components/layout/PresenceNotifications";
 import { logoutAction } from "@/server/auth/actions";
 import { getCurrentUser } from "@/server/auth/session";
 
@@ -10,10 +12,18 @@ export async function Header({ className }: HeaderProps) {
   const user = await getCurrentUser();
 
   return (
-    <HeaderContent
-      className={className}
-      isAuthenticated={Boolean(user)}
-      logoutAction={logoutAction}
-    />
+    <>
+      {user ? (
+        <>
+          <PresenceHeartbeat />
+          <PresenceNotifications />
+        </>
+      ) : null}
+      <HeaderContent
+        className={className}
+        isAuthenticated={Boolean(user)}
+        logoutAction={logoutAction}
+      />
+    </>
   );
 }

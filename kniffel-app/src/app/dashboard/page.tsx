@@ -3,18 +3,17 @@ import Link from "next/link";
 import {
   DoorOpen,
   Plus,
-  Radio,
   Trash2,
   Trophy,
   UserMinus,
-  UserRoundPlus,
-  UsersRound
+  UserRoundPlus
 } from "lucide-react";
 
 import {
   DashboardRequests,
   type DashboardRequestsState
 } from "@/components/dashboard/DashboardRequests";
+import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
@@ -150,7 +149,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   ]);
   const activeGames = gamePlayers.filter(({ game }) => game.status === "ACTIVE").length;
   const lobbyGames = gamePlayers.filter(({ game }) => game.status === "LOBBY").length;
-  const friendsOnline = socialState.friends.length;
+  const friendsOnline = socialState.friends.filter((friend) => friend.isOnline).length;
   const primaryGamePlayers = gamePlayers.filter(({ game }) => game.status !== "FINISHED");
   const archivedGamePlayers = gamePlayers.filter(({ game }) => game.status === "FINISHED");
   const initialRequests: DashboardRequestsState = {
@@ -165,12 +164,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       senderUsername: invitation.sender.username
     }))
   };
-  const stats = [
-    { icon: Trophy, label: "Aktive Runden", value: activeGames },
-    { icon: UsersRound, label: "In Lobby", value: lobbyGames },
-    { icon: Radio, label: "Freunde online", value: friendsOnline }
-  ];
-
   return (
     <PageContainer className="grid gap-8" size="xl">
       {error ? <Alert variant="danger">{error}</Alert> : null}
@@ -213,19 +206,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         initialRequests={initialRequests}
       />
 
-      <section className="grid grid-cols-3 gap-2">
-        {stats.map(({ icon: Icon, label, value }) => (
-          <Card className="p-3 shadow-sm sm:p-3.5" key={label}>
-            <div className="flex items-center justify-between gap-2 text-slate-500 dark:text-zinc-400">
-              <p className="truncate text-[0.7rem] font-semibold uppercase sm:text-xs">{label}</p>
-              <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
-            </div>
-            <p className="mt-1 text-xl font-semibold tracking-tight text-ink sm:text-2xl dark:text-zinc-50">
-              {value}
-            </p>
-          </Card>
-        ))}
-      </section>
+      <DashboardStats
+        activeGames={activeGames}
+        friendsOnline={friendsOnline}
+        lobbyGames={lobbyGames}
+      />
 
       <section className="grid gap-4">
         <div className="flex items-center justify-between gap-3">
