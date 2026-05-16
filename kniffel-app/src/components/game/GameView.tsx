@@ -136,11 +136,51 @@ export function GameView({
           enterScoreAction={enterScoreAction}
           onBackToLobby={() => setTurnModeOpen(false)}
           onSaved={() => {
+            const playerIdBeforeSave = state.currentPlayerId;
+
             setState((previousState) => ({
               ...previousState,
               currentPlayerId: getNextPlayerId(previousState)
             }));
-            void refreshState();
+
+            void (async () => {
+              for (let attempt = 0; attempt < 6; attempt += 1) {
+                try {
+                  const response = await fetch(`/api/games/${initialState.gameId}/state`, {
+                    cache: "no-store"
+                  });
+
+                  if (!response.ok) {
+                    throw new Error("Aktualisierung fehlgeschlagen.");
+                  }
+
+                  const nextState = (await response.json()) as GameState;
+
+                  if (nextState.currentPlayerId !== playerIdBeforeSave) {
+                    const nextIsCurrentUserTurn = isUserTurn(nextState, currentUserId);
+                    setState(nextState);
+                    setPollError(null);
+
+                    if (nextState.status === "ACTIVE" && state.status !== "ACTIVE") {
+                      setTurnModeOpen(true);
+                    }
+
+                    if (!wasCurrentUserTurn.current && nextIsCurrentUserTurn) {
+                      setTurnModeOpen(true);
+                    }
+
+                    wasCurrentUserTurn.current = nextIsCurrentUserTurn;
+                    return;
+                  }
+                } catch {
+                  // ignore retry errors here; polling continues in background
+                }
+
+                await new Promise((resolve) => {
+                  window.setTimeout(resolve, 250);
+                });
+              }
+            })();
           }}
           state={state}
         />
