@@ -88,11 +88,12 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
   const detectDiceValuesFromFrame = useCallback((imageData: ImageData): number[] | null => {
     const { data, width, height } = imageData;
     const brightness = new Uint8Array(width * height);
-    const binary = new Uint8Array(width * height);
+    const darkBinary = new Uint8Array(width * height);
+    const brightBinary = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
     const queueX = new Int32Array(width * height);
     const queueY = new Int32Array(width * height);
-    const pipCenters: Array<{ x: number; y: number }> = [];
+    const diceRegions: Array<{ minX: number; minY: number; maxX: number; maxY: number; area: number }> = [];
     for (let i = 0; i < width * height; i += 1) {
       const offset = i * 4;
       brightness[i] = Math.round((data[offset] + data[offset + 1] + data[offset + 2]) / 3);
@@ -102,23 +103,27 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
       total += value;
     }
     const mean = total / brightness.length;
-    const threshold = Math.max(36, Math.round(mean - 28));
+    const darkThreshold = Math.max(34, Math.round(mean - 26));
+    const brightThreshold = Math.min(240, Math.round(mean + 18));
     for (let i = 0; i < brightness.length; i += 1) {
-      binary[i] = brightness[i] <= threshold ? 1 : 0;
+      darkBinary[i] = brightness[i] <= darkThreshold ? 1 : 0;
+      brightBinary[i] = brightness[i] >= brightThreshold ? 1 : 0;
     }
 
+    // 1) Dice body candidates (bright components)
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const idx = y * width + x;
-        if (visited[idx] || binary[idx] === 0) {
+        if (visited[idx] || brightBinary[idx] === 0) {
           continue;
         }
-
         let head = 0;
         let tail = 0;
         let area = 0;
-        let sumX = 0;
-        let sumY = 0;
+        let minX = x;
+        let maxX = x;
+        let minY = y;
+        let maxY = y;
         queueX[tail] = x;
         queueY[tail] = y;
         tail += 1;
@@ -129,8 +134,10 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
           const cy = queueY[head];
           head += 1;
           area += 1;
-          sumX += cx;
-          sumY += cy;
+          minX = Math.min(minX, cx);
+          maxX = Math.max(maxX, cx);
+          minY = Math.min(minY, cy);
+          maxY = Math.max(maxY, cy);
           const neighbors = [
             [cx - 1, cy],
             [cx + 1, cy],
@@ -142,7 +149,7 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
               continue;
             }
             const nidx = ny * width + nx;
-            if (visited[nidx] || binary[nidx] === 0) {
+            if (visited[nidx] || brightBinary[nidx] === 0) {
               continue;
             }
             visited[nidx] = 1;
@@ -152,90 +159,99 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
           }
         }
 
-        let minX = width;
-        let maxX = 0;
-        let minY = height;
-        let maxY = 0;
-        for (let index = 0; index < tail; index += 1) {
-          minX = Math.min(minX, queueX[index]);
-          maxX = Math.max(maxX, queueX[index]);
-          minY = Math.min(minY, queueY[index]);
-          maxY = Math.max(maxY, queueY[index]);
-        }
-        const componentWidth = maxX - minX + 1;
-        const componentHeight = maxY - minY + 1;
-        const aspectRatio = componentWidth / componentHeight;
-        const minArea = Math.round((width * height) / 3000);
-        const maxArea = Math.round((width * height) / 120);
-
-        if (
-          area >= minArea &&
-          area <= maxArea &&
-          aspectRatio > 0.5 &&
-          aspectRatio < 1.8
-        ) {
-          pipCenters.push({ x: sumX / area, y: sumY / area });
+        const boxWidth = maxX - minX + 1;
+        const boxHeight = maxY - minY + 1;
+        const aspect = boxWidth / boxHeight;
+        const minArea = Math.round((width * height) / 120);
+        const maxArea = Math.round((width * height) / 4);
+        if (area >= minArea && area <= maxArea && aspect > 0.6 && aspect < 1.7) {
+          diceRegions.push({ minX, minY, maxX, maxY, area });
         }
       }
     }
 
-    if (pipCenters.length < maxDiceCount || pipCenters.length > 30) {
+    const topDiceRegions = diceRegions.sort((a, b) => b.area - a.area).slice(0, maxDiceCount);
+    if (topDiceRegions.length !== maxDiceCount) {
       return null;
     }
+    // 2) Count dark pip components inside each dice region (local threshold)
+    const values: number[] = [];
+    for (const region of topDiceRegions) {
+      const padding = 6;
+      const minX = Math.max(0, region.minX - padding);
+      const minY = Math.max(0, region.minY - padding);
+      const maxX = Math.min(width - 1, region.maxX + padding);
+      const maxY = Math.min(height - 1, region.maxY + padding);
+      const rw = maxX - minX + 1;
+      const rh = maxY - minY + 1;
 
-    let centroids = pipCenters.slice(0, maxDiceCount).map((center) => ({ ...center }));
-    for (let iteration = 0; iteration < 8; iteration += 1) {
-      const groups = Array.from({ length: maxDiceCount }, () => [] as Array<{ x: number; y: number }>);
-      for (const center of pipCenters) {
-        let bestIdx = 0;
-        let bestDist = Number.POSITIVE_INFINITY;
-        for (let i = 0; i < centroids.length; i += 1) {
-          const dx = center.x - centroids[i].x;
-          const dy = center.y - centroids[i].y;
-          const dist = dx * dx + dy * dy;
-          if (dist < bestDist) {
-            bestDist = dist;
-            bestIdx = i;
+      let localSum = 0;
+      for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+          localSum += brightness[y * width + x];
+        }
+      }
+      const localMean = localSum / (rw * rh);
+      const pipThreshold = Math.max(28, Math.round(localMean - 24));
+      const localVisited = new Uint8Array(rw * rh);
+      let pipCount = 0;
+
+      for (let y = 0; y < rh; y += 1) {
+        for (let x = 0; x < rw; x += 1) {
+          const lidx = y * rw + x;
+          const gidx = (minY + y) * width + (minX + x);
+          if (localVisited[lidx] || brightness[gidx] > pipThreshold) {
+            continue;
+          }
+          let head = 0;
+          let tail = 0;
+          let area = 0;
+          queueX[tail] = x;
+          queueY[tail] = y;
+          tail += 1;
+          localVisited[lidx] = 1;
+          let cminX = x;
+          let cmaxX = x;
+          let cminY = y;
+          let cmaxY = y;
+
+          while (head < tail) {
+            const cx = queueX[head];
+            const cy = queueY[head];
+            head += 1;
+            area += 1;
+            cminX = Math.min(cminX, cx);
+            cmaxX = Math.max(cmaxX, cx);
+            cminY = Math.min(cminY, cy);
+            cmaxY = Math.max(cmaxY, cy);
+            const neighbors = [[cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]];
+            for (const [nx, ny] of neighbors) {
+              if (nx < 0 || ny < 0 || nx >= rw || ny >= rh) continue;
+              const nlidx = ny * rw + nx;
+              const ngidx = (minY + ny) * width + (minX + nx);
+              if (localVisited[nlidx] || brightness[ngidx] > pipThreshold) continue;
+              localVisited[nlidx] = 1;
+              queueX[tail] = nx;
+              queueY[tail] = ny;
+              tail += 1;
+            }
+          }
+          const bw = cmaxX - cminX + 1;
+          const bh = cmaxY - cminY + 1;
+          const aspect = bw / bh;
+          const minPipArea = Math.round((rw * rh) / 1400);
+          const maxPipArea = Math.round((rw * rh) / 60);
+          if (area >= minPipArea && area <= maxPipArea && aspect > 0.45 && aspect < 1.9) {
+            pipCount += 1;
           }
         }
-        groups[bestIdx].push(center);
       }
-
-      centroids = centroids.map((centroid, index) => {
-        const group = groups[index];
-        if (group.length === 0) {
-          return centroid;
-        }
-        let sumX = 0;
-        let sumY = 0;
-        for (const point of group) {
-          sumX += point.x;
-          sumY += point.y;
-        }
-        return { x: sumX / group.length, y: sumY / group.length };
-      });
-    }
-
-    const clusters = Array.from({ length: maxDiceCount }, () => 0);
-    for (const center of pipCenters) {
-      let bestIdx = 0;
-      let bestDist = Number.POSITIVE_INFINITY;
-      for (let i = 0; i < centroids.length; i += 1) {
-        const dx = center.x - centroids[i].x;
-        const dy = center.y - centroids[i].y;
-        const dist = dx * dx + dy * dy;
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestIdx = i;
-        }
+      if (pipCount < 1 || pipCount > 6) {
+        return null;
       }
-      clusters[bestIdx] += 1;
+      values.push(pipCount);
     }
-
-    if (clusters.some((count) => count < 1 || count > 6)) {
-      return null;
-    }
-    return clusters;
+    return values;
   }, []);
 
   const scanCurrentFrame = useCallback((): number[] | null => {
