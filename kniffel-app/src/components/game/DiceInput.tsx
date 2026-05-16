@@ -172,7 +172,100 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
 
     const topDiceRegions = diceRegions.sort((a, b) => b.area - a.area).slice(0, maxDiceCount);
     if (topDiceRegions.length !== maxDiceCount) {
-      return null;
+      // Fallback: cluster dark pips globally if body detection fails.
+      const pipCenters: Array<{ x: number; y: number }> = [];
+      const pipVisited = new Uint8Array(width * height);
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const idx = y * width + x;
+          if (pipVisited[idx] || darkBinary[idx] === 0) {
+            continue;
+          }
+          let head = 0;
+          let tail = 0;
+          let area = 0;
+          let sumX = 0;
+          let sumY = 0;
+          queueX[tail] = x;
+          queueY[tail] = y;
+          tail += 1;
+          pipVisited[idx] = 1;
+          while (head < tail) {
+            const cx = queueX[head];
+            const cy = queueY[head];
+            head += 1;
+            area += 1;
+            sumX += cx;
+            sumY += cy;
+            const neighbors = [[cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1]];
+            for (const [nx, ny] of neighbors) {
+              if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+              const nidx = ny * width + nx;
+              if (pipVisited[nidx] || darkBinary[nidx] === 0) continue;
+              pipVisited[nidx] = 1;
+              queueX[tail] = nx;
+              queueY[tail] = ny;
+              tail += 1;
+            }
+          }
+          const minPipArea = Math.round((width * height) / 4500);
+          const maxPipArea = Math.round((width * height) / 220);
+          if (area >= minPipArea && area <= maxPipArea) {
+            pipCenters.push({ x: sumX / area, y: sumY / area });
+          }
+        }
+      }
+      if (pipCenters.length < maxDiceCount || pipCenters.length > 30) {
+        return null;
+      }
+      let centroids = pipCenters.slice(0, maxDiceCount).map((c) => ({ ...c }));
+      for (let iteration = 0; iteration < 8; iteration += 1) {
+        const groups = Array.from({ length: maxDiceCount }, () => [] as Array<{ x: number; y: number }>);
+        for (const center of pipCenters) {
+          let bestIdx = 0;
+          let bestDist = Number.POSITIVE_INFINITY;
+          for (let i = 0; i < centroids.length; i += 1) {
+            const dx = center.x - centroids[i].x;
+            const dy = center.y - centroids[i].y;
+            const dist = dx * dx + dy * dy;
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestIdx = i;
+            }
+          }
+          groups[bestIdx].push(center);
+        }
+        centroids = centroids.map((centroid, index) => {
+          const group = groups[index];
+          if (group.length === 0) return centroid;
+          let gx = 0;
+          let gy = 0;
+          for (const p of group) {
+            gx += p.x;
+            gy += p.y;
+          }
+          return { x: gx / group.length, y: gy / group.length };
+        });
+      }
+      const clusteredValues = Array.from({ length: maxDiceCount }, () => 0);
+      for (const center of pipCenters) {
+        let bestIdx = 0;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < centroids.length; i += 1) {
+          const dx = center.x - centroids[i].x;
+          const dy = center.y - centroids[i].y;
+          const dist = dx * dx + dy * dy;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+          }
+        }
+        clusteredValues[bestIdx] += 1;
+      }
+      if (clusteredValues.some((count) => count < 1 || count > 6)) {
+        return null;
+      }
+      return clusteredValues;
     }
     // 2) Count dark pip components inside each dice region (local threshold)
     const values: number[] = [];
