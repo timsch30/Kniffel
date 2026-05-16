@@ -57,10 +57,10 @@ export function GameTurnScreen({
         return;
       }
 
-      const rowRect = playerRow.getBoundingClientRect();
-      const cardRect = activeCard.getBoundingClientRect();
-      const deltaLeft = cardRect.left - rowRect.left;
-      const nextLeft = playerRow.scrollLeft + deltaLeft;
+      const styles = window.getComputedStyle(playerRow);
+      const paddingLeft = Number.parseFloat(styles.paddingLeft) || 0;
+      const maxScrollLeft = Math.max(0, playerRow.scrollWidth - playerRow.clientWidth);
+      const nextLeft = Math.min(Math.max(activeCard.offsetLeft - paddingLeft, 0), maxScrollLeft);
 
       playerRow.scrollTo({
         behavior: "smooth",
