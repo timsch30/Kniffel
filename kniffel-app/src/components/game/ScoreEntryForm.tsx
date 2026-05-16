@@ -21,6 +21,7 @@ type ScoreEntryFormProps = {
 };
 
 type EntryMode = "dice" | "manual";
+const EMPTY_DICE_VALUES: number[] = [];
 
 function isCategoryUsed(scoreCard: ScoreCard, category: ScoreCategory): boolean {
   return scoreCard[category] !== null && scoreCard[category] !== undefined;
@@ -28,7 +29,7 @@ function isCategoryUsed(scoreCard: ScoreCard, category: ScoreCategory): boolean 
 
 export function ScoreEntryForm({
   action,
-  initialDiceValues = [],
+  initialDiceValues = EMPTY_DICE_VALUES,
   onlineRollMode = false,
   onSaved,
   scoreCard
@@ -43,9 +44,23 @@ export function ScoreEntryForm({
   const [rollCount, setRollCount] = useState(initialDiceValues.length === 5 ? 1 : 0);
 
   useEffect(() => {
-    setDiceValues(initialDiceValues);
-    setHeldDice([false, false, false, false, false]);
-    setRollCount(initialDiceValues.length === 5 ? 1 : 0);
+    setDiceValues((previous) => {
+      if (
+        previous.length === initialDiceValues.length &&
+        previous.every((value, index) => value === initialDiceValues[index])
+      ) {
+        return previous;
+      }
+
+      return initialDiceValues;
+    });
+    setHeldDice((previous) =>
+      previous.every((held) => !held) ? previous : [false, false, false, false, false]
+    );
+    setRollCount((previous) => {
+      const nextRollCount = initialDiceValues.length === 5 ? 1 : 0;
+      return previous === nextRollCount ? previous : nextRollCount;
+    });
   }, [initialDiceValues]);
 
   function rollDice() {
