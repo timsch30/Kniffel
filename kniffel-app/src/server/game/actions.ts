@@ -752,5 +752,5 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
     redirectWithError(errorPath, message);
   }
 
-  redirect(`/games/${gameId}`);
+  revalidatePath(`/games/${gameId}`);
 }

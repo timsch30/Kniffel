@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, FilePenLine, X } from "lucide-react";
@@ -30,6 +30,10 @@ export function GameTurnScreen({
   state
 }: GameTurnScreenProps) {
   const [entryOpen, setEntryOpen] = useState(false);
+  const playerCardRefs = useRef<Record<string, HTMLElement | null>>({});
+  const playerRowRef = useRef<HTMLDivElement | null>(null);
+  const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
+  const hasInitialAutoScrollRef = useRef(false);
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
   const currentUserScoreCard = currentUserPlayer
@@ -38,6 +42,40 @@ export function GameTurnScreen({
   const userTurn = isUserTurn(state, currentUserId);
   const filledCount = getFilledCategoryCount(currentUserScoreCard);
   const total = currentUserScoreCard?.total ?? 0;
+
+  useEffect(() => {
+    const playerChanged = previousCurrentPlayerIdRef.current !== state.currentPlayerId;
+
+    if (!playerChanged && hasInitialAutoScrollRef.current) {
+      return;
+    }
+
+    previousCurrentPlayerIdRef.current = state.currentPlayerId;
+    hasInitialAutoScrollRef.current = true;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const activeCard = playerCardRefs.current[state.currentPlayerId];
+      const playerRow = playerRowRef.current;
+
+      if (!activeCard || !playerRow) {
+        return;
+      }
+
+      const styles = window.getComputedStyle(playerRow);
+      const paddingLeft = Number.parseFloat(styles.paddingLeft) || 0;
+      const maxScrollLeft = Math.max(0, playerRow.scrollWidth - playerRow.clientWidth);
+      const nextLeft = Math.min(Math.max(activeCard.offsetLeft - paddingLeft, 0), maxScrollLeft);
+
+      playerRow.scrollTo({
+        behavior: "smooth",
+        left: nextLeft
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [state.currentPlayerId]);
 
   return (
     <section className="relative -mx-4 min-h-[100svh] bg-slate-50 px-4 pb-32 pt-3 sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-slate-200/80 sm:bg-white/70 sm:p-5 sm:pb-32 sm:shadow-card sm:backdrop-blur-xl dark:bg-zinc-950 dark:sm:border-white/10 dark:sm:bg-zinc-900/70 dark:sm:shadow-card-dark">
@@ -67,7 +105,10 @@ export function GameTurnScreen({
           </div>
         </div>
 
-        <div className="-mx-4 overflow-x-auto px-4 pb-3 [scroll-snap-type:x_mandatory] sm:mx-0 sm:px-0">
+        <div
+          className="-mx-4 overflow-x-auto px-4 pb-3 [scroll-snap-type:x_mandatory] sm:mx-0 sm:px-0"
+          ref={playerRowRef}
+        >
           <div className="flex gap-4">
             {state.players.map((player) => {
               const scoreCard = getPlayerScoreCard(state, player.id);
@@ -83,6 +124,9 @@ export function GameTurnScreen({
                       : "border-slate-200 dark:border-white/10"
                   )}
                   key={player.id}
+                  ref={(element) => {
+                    playerCardRefs.current[player.id] = element;
+                  }}
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">

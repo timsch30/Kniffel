@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Calculator, CheckCircle2, PencilLine, Save, Sparkles } from "lucide-react";
 
@@ -28,6 +28,8 @@ export function ScoreEntryForm({ action, onSaved, scoreCard }: ScoreEntryFormPro
   const [manualPoints, setManualPoints] = useState("");
   const [mode, setMode] = useState<EntryMode>("dice");
   const [selectedCategory, setSelectedCategory] = useState<ScoreCategory | null>(null);
+  const suggestionsSectionRef = useRef<HTMLElement | null>(null);
+  const previousDiceCountRef = useRef(0);
 
   function handleModeChange(nextMode: EntryMode) {
     setMode(nextMode);
@@ -57,6 +59,19 @@ export function ScoreEntryForm({ action, onSaved, scoreCard }: ScoreEntryFormPro
       : manualPointsValid
         ? parsedManualPoints
         : null;
+
+  useEffect(() => {
+    const previousDiceCount = previousDiceCountRef.current;
+
+    if (mode === "dice" && previousDiceCount < 5 && diceValues.length === 5) {
+      suggestionsSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }
+
+    previousDiceCountRef.current = diceValues.length;
+  }, [diceValues.length, mode]);
 
   return (
     <form action={submit} className="grid gap-5 pb-36">
@@ -89,7 +104,7 @@ export function ScoreEntryForm({ action, onSaved, scoreCard }: ScoreEntryFormPro
       </div>
 
       {mode === "dice" ? (
-        <section className="grid gap-5">
+        <section className="grid gap-5" ref={suggestionsSectionRef}>
           <DiceInput onChange={setDiceValues} values={diceValues} />
           <ScoreSuggestions
             diceValues={diceValues}
