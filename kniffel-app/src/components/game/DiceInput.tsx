@@ -97,7 +97,7 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
       total += value;
     }
     const mean = total / brightness.length;
-    const threshold = Math.max(30, Math.round(mean * 0.72));
+    const threshold = Math.max(42, Math.round(mean - 36));
     const visited = new Uint8Array(width * height);
     const queueX = new Int32Array(width * height);
     const queueY = new Int32Array(width * height);
@@ -144,18 +144,27 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
           }
         }
 
-        const componentWidth = Math.max(...queueX.slice(0, tail)) - Math.min(...queueX.slice(0, tail)) + 1;
-        const componentHeight =
-          Math.max(...queueY.slice(0, tail)) - Math.min(...queueY.slice(0, tail)) + 1;
+        let minX = width;
+        let maxX = 0;
+        let minY = height;
+        let maxY = 0;
+        for (let index = 0; index < tail; index += 1) {
+          minX = Math.min(minX, queueX[index]);
+          maxX = Math.max(maxX, queueX[index]);
+          minY = Math.min(minY, queueY[index]);
+          maxY = Math.max(maxY, queueY[index]);
+        }
+        const componentWidth = maxX - minX + 1;
+        const componentHeight = maxY - minY + 1;
         const aspectRatio = componentWidth / componentHeight;
-        const minArea = Math.round((width * height) / 1100);
-        const maxArea = Math.round((width * height) / 40);
+        const minArea = Math.round((width * height) / 1800);
+        const maxArea = Math.round((width * height) / 18);
 
         if (
           area >= minArea &&
           area <= maxArea &&
-          aspectRatio > 0.45 &&
-          aspectRatio < 1.8
+          aspectRatio > 0.35 &&
+          aspectRatio < 2.4
         ) {
           pips += 1;
         }
@@ -180,12 +189,14 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
       setScanError("Scan nicht verfuegbar.");
       return null;
     }
-    const size = Math.min(video.videoWidth, video.videoHeight);
-    const sx = Math.floor((video.videoWidth - size) / 2);
-    const sy = Math.floor((video.videoHeight - size) / 2);
+    const targetRatio = 5;
+    const sourceWidth = Math.min(video.videoWidth, Math.floor(video.videoHeight * targetRatio));
+    const sourceHeight = Math.floor(sourceWidth / targetRatio);
+    const sx = Math.floor((video.videoWidth - sourceWidth) / 2);
+    const sy = Math.floor((video.videoHeight - sourceHeight) / 2);
     canvas.width = 500;
     canvas.height = 100;
-    context.drawImage(video, sx, sy, size, size, 0, 0, canvas.width, canvas.height);
+    context.drawImage(video, sx, sy, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
 
     const detectedValues: number[] = [];
     const slotWidth = Math.floor(canvas.width / maxDiceCount);
