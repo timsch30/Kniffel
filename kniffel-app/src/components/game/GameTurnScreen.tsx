@@ -32,18 +32,73 @@ export function GameTurnScreen({
   const [entryOpen, setEntryOpen] = useState(false);
   const [rollMode, setRollMode] = useState<"real" | "online" | null>(null);
   const [showRollModePicker, setShowRollModePicker] = useState(false);
+  const [viewedPlayerId, setViewedPlayerId] = useState(
+    () =>
+      state.currentPlayerId ??
+      state.players.find((player) => player.userId === currentUserId)?.id ??
+      state.players[0]?.id ??
+      ""
+  );
   const playerCardRefs = useRef<Record<string, HTMLElement | null>>({});
   const playerRowRef = useRef<HTMLDivElement | null>(null);
   const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
   const hasInitialAutoScrollRef = useRef(false);
+  const scrollFrameRef = useRef<number | null>(null);
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
+  const viewedPlayer = state.players.find((player) => player.id === viewedPlayerId);
+  const viewedPlayerScoreCard = viewedPlayer ? getPlayerScoreCard(state, viewedPlayer.id) : null;
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
   const currentUserScoreCard = currentUserPlayer
     ? getPlayerScoreCard(state, currentUserPlayer.id)
     : null;
   const userTurn = isUserTurn(state, currentUserId);
   const filledCount = getFilledCategoryCount(currentUserScoreCard);
-  const total = currentUserScoreCard?.total ?? 0;
+  const viewedTotal = viewedPlayerScoreCard?.total ?? 0;
+
+  function updateViewedPlayerFromScroll() {
+    const playerRow = playerRowRef.current;
+
+    if (!playerRow) {
+      return;
+    }
+
+    const rowRect = playerRow.getBoundingClientRect();
+    const rowCenter = rowRect.left + rowRect.width / 2;
+    let nearestPlayerId = viewedPlayerId;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    state.players.forEach((player) => {
+      const card = playerCardRefs.current[player.id];
+
+      if (!card) {
+        return;
+      }
+
+      const cardRect = card.getBoundingClientRect();
+      const cardCenter = cardRect.left + cardRect.width / 2;
+      const distance = Math.abs(cardCenter - rowCenter);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestPlayerId = player.id;
+      }
+    });
+
+    if (nearestPlayerId && nearestPlayerId !== viewedPlayerId) {
+      setViewedPlayerId(nearestPlayerId);
+    }
+  }
+
+  function handlePlayerRowScroll() {
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current);
+    }
+
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      updateViewedPlayerFromScroll();
+      scrollFrameRef.current = null;
+    });
+  }
 
   useEffect(() => {
     const playerChanged = previousCurrentPlayerIdRef.current !== state.currentPlayerId;
@@ -67,10 +122,12 @@ export function GameTurnScreen({
         return;
       }
 
-      const styles = window.getComputedStyle(playerRow);
-      const paddingLeft = Number.parseFloat(styles.paddingLeft) || 0;
       const maxScrollLeft = Math.max(0, playerRow.scrollWidth - playerRow.clientWidth);
-      const nextLeft = Math.min(Math.max(activeCard.offsetLeft - paddingLeft, 0), maxScrollLeft);
+      const centeredLeft =
+        activeCard.offsetLeft - (playerRow.clientWidth - activeCard.offsetWidth) / 2;
+      const nextLeft = Math.min(Math.max(centeredLeft, 0), maxScrollLeft);
+
+      setViewedPlayerId(state.currentPlayerId);
 
       playerRow.scrollTo({
         behavior: "smooth",
@@ -88,6 +145,22 @@ export function GameTurnScreen({
       setShowRollModePicker(true);
     }
   }, [rollMode, userTurn]);
+
+  useEffect(() => {
+    if (state.players.some((player) => player.id === viewedPlayerId)) {
+      return;
+    }
+
+    setViewedPlayerId(state.currentPlayerId ?? state.players[0]?.id ?? "");
+  }, [state.currentPlayerId, state.players, viewedPlayerId]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+      }
+    };
+  }, []);
 
   return (
     <section className="relative -mx-4 min-h-[100svh] bg-slate-50 px-4 pb-32 pt-3 sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-slate-200/80 sm:bg-white/70 sm:p-5 sm:pb-32 sm:shadow-card sm:backdrop-blur-xl dark:bg-zinc-950 dark:sm:border-white/10 dark:sm:bg-zinc-900/70 dark:sm:shadow-card-dark">
@@ -112,16 +185,17 @@ export function GameTurnScreen({
             </div>
             <div className="shrink-0 rounded-lg bg-ink px-3 py-2 text-right text-white dark:bg-white dark:text-zinc-950">
               <p className="text-[0.68rem] font-semibold uppercase opacity-70">Punkte</p>
-              <p className="text-base font-semibold tabular-nums">{total}</p>
+              <p className="text-base font-semibold tabular-nums">{viewedTotal}</p>
             </div>
           </div>
         </div>
 
         <div
-          className="-mx-4 overflow-x-auto px-4 pb-3 [scroll-snap-type:x_mandatory] sm:mx-0 sm:px-0"
+          className="overflow-x-auto px-1 pb-3 [scroll-padding-inline:1.25rem] [scroll-snap-type:x_mandatory] sm:px-0"
+          onScroll={handlePlayerRowScroll}
           ref={playerRowRef}
         >
-          <div className="flex gap-4">
+          <div className="flex gap-4 px-1 sm:px-0">
             {state.players.map((player) => {
               const scoreCard = getPlayerScoreCard(state, player.id);
               const active = player.id === state.currentPlayerId;
@@ -130,7 +204,7 @@ export function GameTurnScreen({
               return (
                 <article
                   className={cn(
-                    "w-[min(86vw,28rem)] shrink-0 scroll-ml-4 rounded-lg border bg-white/85 p-4 shadow-sm [scroll-snap-align:start] dark:bg-white/5",
+                    "w-[min(calc(100vw-2.75rem),28rem)] shrink-0 rounded-lg border bg-white/85 p-4 shadow-sm [scroll-snap-align:center] dark:bg-white/5",
                     active
                       ? "border-emerald-500/35 dark:border-emerald-300/30"
                       : "border-slate-200 dark:border-white/10"
@@ -155,6 +229,39 @@ export function GameTurnScreen({
                   </div>
                   <ScoreCardBlock compact scoreCard={scoreCard} />
                 </article>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-200/80 bg-white/85 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-ink dark:text-zinc-50">Platzierung</h2>
+            {viewedPlayer ? (
+              <Badge variant="neutral" className="max-w-36 truncate">
+                {viewedPlayer.displayName}
+              </Badge>
+            ) : null}
+          </div>
+          <div className="grid gap-1.5">
+            {state.ranking.map((entry) => {
+              const viewed = entry.playerId === viewedPlayerId;
+
+              return (
+                <div
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm",
+                    viewed
+                      ? "bg-emerald-50 font-semibold text-emerald-950 dark:bg-emerald-300/10 dark:text-emerald-50"
+                      : "text-slate-600 dark:text-zinc-400"
+                  )}
+                  key={entry.playerId}
+                >
+                  <span className="min-w-0 truncate">
+                    {entry.rank}. {entry.displayName}
+                  </span>
+                  <span className="shrink-0 tabular-nums">{entry.total}</span>
+                </div>
               );
             })}
           </div>

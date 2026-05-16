@@ -242,12 +242,12 @@ export async function inviteFriendToGameAction(formData: FormData): Promise<void
         throw new Error("Runde wurde nicht gefunden.");
       }
 
-      if (game.ownerId !== user.id) {
-        throw new Error("Nur der Owner kann Freunde einladen.");
+      if (!game.players.some((player) => player.userId === user.id)) {
+        throw new Error("Nur Spieler in dieser Runde koennen Freunde einladen.");
       }
 
-      if (game.status === "FINISHED") {
-        throw new Error("Diese Runde ist bereits beendet.");
+      if (game.status !== "LOBBY") {
+        throw new Error("Freunde koennen nur in der Lobby eingeladen werden.");
       }
 
       if (game.players.some((player) => player.userId === friendId)) {
@@ -264,11 +264,21 @@ export async function inviteFriendToGameAction(formData: FormData): Promise<void
         throw new Error("Du kannst nur bestehende Freunde einladen.");
       }
 
-      await tx.gameInvitation.create({
-        data: {
+      await tx.gameInvitation.upsert({
+        create: {
           gameId,
           receiverId: friendId,
           senderId: user.id
+        },
+        update: {
+          senderId: user.id,
+          status: "PENDING"
+        },
+        where: {
+          gameId_receiverId: {
+            gameId,
+            receiverId: friendId
+          }
         }
       });
     });
@@ -346,6 +356,119 @@ export async function declineGameInvitationAction(invitationId: string): Promise
   });
 
   revalidatePath("/dashboard");
+}
+
+export async function deleteGameAction(gameId: string): Promise<void> {
+  const user = await requireCurrentUser();
+
+  const game = await prisma.game.findUnique({
+    select: {
+      ownerId: true
+    },
+    where: {
+      id: gameId
+    }
+  });
+
+  if (!game) {
+    redirectWithError("/dashboard", "Runde wurde nicht gefunden.");
+  }
+
+  if (game.ownerId !== user.id) {
+    redirectWithError("/dashboard", "Nur eigene Runden koennen geloescht werden.");
+  }
+
+  await prisma.game.delete({
+    where: {
+      id: gameId
+    }
+  });
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function leaveGameAction(gameId: string): Promise<void> {
+  const user = await requireCurrentUser();
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            orderBy: {
+              position: "asc"
+            },
+            select: {
+              id: true,
+              position: true,
+              userId: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.ownerId === user.id) {
+        throw new Error("Eigene Runden bitte loeschen statt verlassen.");
+      }
+
+      const player = game.players.find((entry) => entry.userId === user.id);
+
+      if (!player) {
+        throw new Error("Du bist nicht in dieser Runde.");
+      }
+
+      await tx.gamePlayer.delete({
+        where: {
+          id: player.id
+        }
+      });
+
+      const remainingPlayers = game.players.filter((entry) => entry.id !== player.id);
+      const currentPlayerLeft = game.currentPlayerId === player.id;
+      const nextCurrentPlayer = currentPlayerLeft
+        ? remainingPlayers.find((entry) => entry.position > player.position) ?? remainingPlayers[0] ?? null
+        : null;
+
+      await Promise.all(
+        remainingPlayers.map((entry, index) =>
+          tx.gamePlayer.update({
+            data: {
+              position: index + 1
+            },
+            where: {
+              id: entry.id
+            }
+          })
+        )
+      );
+
+      if (currentPlayerLeft) {
+        await tx.game.update({
+          data: {
+            currentPlayerId: nextCurrentPlayer?.id ?? null
+          },
+          where: {
+            id: game.id
+          }
+        });
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Runde konnte nicht verlassen werden.";
+
+    redirectWithError("/dashboard", message);
+  }
+
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
 }
 
 function readDiceValues(formData: FormData): number[] {

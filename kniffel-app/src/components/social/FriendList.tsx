@@ -25,10 +25,24 @@ type FriendListProps = {
 };
 
 function formatLastActive(value: string): string {
+  const date = new Date(value);
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(1, Math.floor(diffMs / 60_000));
+
+  if (diffMs < 60_000) {
+    return "gerade eben";
+  }
+
+  if (diffMinutes < 60) {
+    return `vor ${diffMinutes} Min.`;
+  }
+
   return new Intl.DateTimeFormat("de-DE", {
     day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
     month: "short"
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function FriendList({
@@ -85,12 +99,23 @@ export function FriendList({
               >
                 <PlayerAvatar player={friend} />
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-ink dark:text-zinc-50">
-                    {friend.name}
+                  <span className="flex items-center gap-2">
+                    <span className="block truncate text-sm font-semibold text-ink dark:text-zinc-50">
+                      {friend.name}
+                    </span>
+                    <span
+                      aria-label={friend.isOnline ? "Online" : "Offline"}
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        friend.isOnline
+                          ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]"
+                          : "bg-slate-300 dark:bg-zinc-600"
+                      )}
+                    />
                   </span>
                   <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-zinc-400">
                     <Clock aria-hidden="true" className="h-3 w-3" />
-                    {formatLastActive(friend.lastActiveAt)}
+                    {friend.isOnline ? "Online" : `Zuletzt ${formatLastActive(friend.lastActiveAt)}`}
                   </span>
                 </span>
               </button>

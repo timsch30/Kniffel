@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 
 import { motion } from "framer-motion";
 import {
-  BarChart3,
   Flame,
   Gauge,
   Medal,
@@ -20,7 +19,6 @@ import { HeadToHeadCard } from "@/components/social/HeadToHeadCard";
 import { Leaderboard } from "@/components/social/Leaderboard";
 import { MetricTile } from "@/components/social/MetricTile";
 import { PlayerProfileCard } from "@/components/social/PlayerProfileCard";
-import { RecentGames } from "@/components/social/RecentGames";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -31,10 +29,9 @@ import {
   calculateHeadToHeadStats,
   calculateLeaderboard,
   calculatePlayerStats,
-  calculateRivalStats,
-  getRecentGames
+  calculateRivalStats
 } from "@/social/stats";
-import type { Friend, Game, Player, PlayerId } from "@/social/types";
+import type { Friend, Player, PlayerId } from "@/social/types";
 
 type SocialDashboardProps = {
   acceptFriendRequestAction: (requestId: string) => void | Promise<void>;
@@ -47,9 +44,7 @@ type SocialDashboardProps = {
   userName: string;
 };
 
-type TabId = "overview" | "friends" | "ranking" | "profile";
-
-const games: Game[] = [];
+type TabId = "friends" | "ranking" | "profile";
 
 const currentPlayer: Player = {
   color: "bg-ink text-white dark:bg-white dark:text-zinc-950",
@@ -58,26 +53,23 @@ const currentPlayer: Player = {
   name: "Du"
 };
 
-const tabs: { icon: typeof BarChart3; id: TabId; label: string }[] = [
-  { icon: BarChart3, id: "overview", label: "Uebersicht" },
+const tabs: { icon: typeof UsersRound; id: TabId; label: string }[] = [
   { icon: UsersRound, id: "friends", label: "Freunde" },
   { icon: Trophy, id: "ranking", label: "Ranking" },
   { icon: UserRound, id: "profile", label: "Profil" }
 ];
 
-const fallbackFriend: Friend = {
+  const fallbackFriend: Friend = {
   color: "bg-slate-600 text-white",
   favoriteCategory: "Offen",
   id: "fallback",
   initials: "--",
+  isOnline: false,
   lastActiveAt: new Date(0).toISOString(),
+  lastSeenAt: null,
   name: "Offen",
   relationshipStatus: "accepted"
 };
-
-function getFriendStats(friend: Friend) {
-  return calculatePlayerStats(games, friend.id);
-}
 
 export function SocialDashboard({
   acceptFriendRequestAction,
@@ -89,7 +81,7 @@ export function SocialDashboard({
   userId,
   userName
 }: SocialDashboardProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<TabId>("friends");
   const [selectedFriendId, setSelectedFriendId] = useState<PlayerId>(
     socialState.friends[0]?.id ?? ""
   );
@@ -103,24 +95,25 @@ export function SocialDashboard({
     [userId, userName]
   );
   const friends = socialState.friends;
+  const games = socialState.games;
   const players = useMemo<Player[]>(() => [user, ...friends], [friends, user]);
   const selectedFriend =
     friends.find((friend) => friend.id === selectedFriendId) ??
     friends[0] ??
     fallbackFriend;
-  const userStats = useMemo(() => calculatePlayerStats(games, user.id), [user.id]);
+  const userStats = useMemo(() => calculatePlayerStats(games, user.id), [games, user.id]);
   const selectedFriendStats = useMemo(
     () => calculatePlayerStats(games, selectedFriend.id),
-    [selectedFriend.id]
+    [games, selectedFriend.id]
   );
   const headToHead = useMemo(
     () => calculateHeadToHeadStats(games, user, selectedFriend),
-    [selectedFriend, user]
+    [games, selectedFriend, user]
   );
-  const leaderboard = useMemo(() => calculateLeaderboard(players, games), [players]);
+  const leaderboard = useMemo(() => calculateLeaderboard(players, games), [games, players]);
   const achievements = useMemo(() => calculateAchievements(userStats), [userStats]);
-  const recentGames = useMemo(() => getRecentGames(games, 5), []);
-  const rivals = useMemo(() => calculateRivalStats(games, user, friends), [friends, user]);
+  const rivals = useMemo(() => calculateRivalStats(games, user, friends), [friends, games, user]);
+  const getFriendStats = (friend: Friend) => calculatePlayerStats(games, friend.id);
 
   return (
     <div className="grid gap-5">
@@ -150,7 +143,7 @@ export function SocialDashboard({
 
         <nav
           aria-label="Social Navigation"
-          className="grid grid-cols-4 rounded-lg border border-slate-200/80 bg-white/75 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+          className="grid grid-cols-3 rounded-lg border border-slate-200/80 bg-white/75 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
         >
           {tabs.map(({ icon: Icon, id, label }) => {
             const active = activeTab === id;
@@ -182,34 +175,6 @@ export function SocialDashboard({
           })}
         </nav>
       </section>
-
-      {activeTab === "overview" ? (
-        <motion.section
-          animate={{ opacity: 1, y: 0 }}
-          className="grid gap-4 lg:grid-cols-[1fr_0.9fr]"
-          initial={{ opacity: 0, y: 8 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="grid gap-4">
-            <PlayerProfileCard player={user} stats={userStats} />
-            <HeadToHeadCard friend={selectedFriend} stats={headToHead} user={user} />
-          </div>
-          <div className="grid gap-4">
-              <FriendList
-              acceptFriendRequestAction={acceptFriendRequestAction}
-              declineFriendRequestAction={declineFriendRequestAction}
-              friends={friends}
-              incomingRequests={socialState.incomingRequests}
-              onSelect={setSelectedFriendId}
-              outgoingRequests={socialState.outgoingRequests}
-              removeFriendAction={removeFriendAction}
-              selectedFriendId={selectedFriend?.id ?? ""}
-              sendFriendRequestAction={sendFriendRequestAction}
-            />
-            <RecentGames games={recentGames} players={players} />
-          </div>
-        </motion.section>
-      ) : null}
 
       {activeTab === "friends" ? (
         <motion.section

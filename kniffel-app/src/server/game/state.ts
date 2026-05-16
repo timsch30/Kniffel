@@ -76,11 +76,12 @@ async function getFriendInvites(gameId: string, currentUserId: string): Promise<
 
   return friends.map((friend) => {
     const invitation = invitationByReceiverId.get(friend.id);
+    const friendIsPlayer = playerUserIds.has(friend.id);
 
     return {
       id: friend.id,
       invitationId: invitation?.id ?? null,
-      status: playerUserIds.has(friend.id) ? "IN_GAME" : invitation?.status ?? null,
+      status: friendIsPlayer ? "IN_GAME" : invitation?.status === "PENDING" ? "PENDING" : null,
       username: friend.username
     };
   });
@@ -198,8 +199,9 @@ export async function getGameState(
         displayName: lastTurn.player?.displayName ?? "Unbekannter Spieler"
       }
     : null;
+  const currentUserIsPlayer = game.players.some((player) => player.userId === currentUserId);
   const friendInvites =
-    game.ownerId === currentUserId && game.status !== "FINISHED"
+    currentUserIsPlayer && game.status === "LOBBY"
       ? await getFriendInvites(game.id, currentUserId)
       : [];
 

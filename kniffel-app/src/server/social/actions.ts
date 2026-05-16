@@ -95,6 +95,7 @@ export async function sendFriendRequestAction(formData: FormData): Promise<void>
     redirectWithError("Anfrage konnte nicht gesendet werden.");
   }
 
+  revalidatePath("/dashboard");
   revalidatePath("/social");
 }
 
@@ -135,6 +136,7 @@ export async function acceptFriendRequestAction(requestId: string): Promise<void
           id: requestId
         }
       });
+      revalidatePath("/dashboard");
       revalidatePath("/social");
       return;
     }
@@ -144,6 +146,7 @@ export async function acceptFriendRequestAction(requestId: string): Promise<void
     redirectWithError(message);
   }
 
+  revalidatePath("/dashboard");
   revalidatePath("/social");
 }
 
@@ -157,6 +160,7 @@ export async function declineFriendRequestAction(requestId: string): Promise<voi
     }
   });
 
+  revalidatePath("/dashboard");
   revalidatePath("/social");
 }
 
@@ -168,5 +172,6 @@ export async function removeFriendAction(friendId: string): Promise<void> {
     where: friendshipPair
   });
 
+  revalidatePath("/dashboard");
   revalidatePath("/social");
 }

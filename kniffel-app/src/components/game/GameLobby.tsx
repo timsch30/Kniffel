@@ -153,6 +153,7 @@ export function GameLobby({
   const canStart = isOwner && state.status === "LOBBY";
   const canStartNow = canStart && state.players.length >= 2;
   const userFilledCount = getFilledCategoryCount(currentUserScoreCard);
+  const showFinishedView = state.status === "FINISHED";
 
   const detailHeader =
     view === "overview" ? null : (
@@ -198,7 +199,7 @@ export function GameLobby({
         </div>
       </section>
 
-      {state.winner ? (
+      {state.winner && showFinishedView ? (
         <section className="rounded-lg border border-amber-300/50 bg-amber-50 p-4 shadow-card dark:border-amber-300/20 dark:bg-amber-300/10">
           <div className="flex items-start gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-lg bg-white text-amber-700 shadow-sm dark:bg-white/10 dark:text-amber-100">
@@ -206,26 +207,27 @@ export function GameLobby({
             </div>
             <div className="grid flex-1 gap-3">
               <p className="text-sm leading-6 text-amber-950 dark:text-amber-50">
-                Gewinner: <span className="font-semibold">{state.winner.displayName}</span> mit{" "}
-                <span className="font-semibold">{state.winner.total}</span> Punkten.
+                Gewinner: <span className="font-semibold">{state.winner.displayName}</span>
               </p>
               <div className="grid gap-2">
-                {state.ranking.map((entry) => (
-                  <div
-                    className={cn(
-                      "flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm",
-                      entry.rank === 1
-                        ? "bg-white font-semibold text-amber-950 shadow-sm dark:bg-white/10 dark:text-amber-50"
-                        : "bg-amber-100/70 text-amber-950 dark:bg-white/5 dark:text-amber-50"
-                    )}
-                    key={entry.playerId}
-                  >
-                    <span className="min-w-0 truncate">
-                      Platz {entry.rank}: {entry.displayName}
-                    </span>
-                    <span className="shrink-0 tabular-nums">{entry.total}</span>
-                  </div>
-                ))}
+                <p className="text-xs font-bold uppercase text-amber-800 dark:text-amber-100">
+                  Endstand
+                </p>
+                <div className="grid gap-1.5">
+                  {state.ranking.map((entry) => (
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-lg border border-amber-200/70 bg-white/70 px-3 py-2 text-sm dark:border-amber-200/10 dark:bg-white/10"
+                      key={entry.playerId}
+                    >
+                      <span className="min-w-0 truncate font-semibold text-amber-950 dark:text-amber-50">
+                        {entry.rank}. {entry.displayName}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-amber-950 dark:text-amber-50">
+                        {entry.total} Punkte
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 {isOwner ? (
@@ -235,7 +237,12 @@ export function GameLobby({
                       Neue Runde
                     </SubmitButton>
                   </form>
-                ) : null}
+                ) : (
+                  <Link className={buttonVariants("primary")} href="/games/new">
+                    <RotateCw aria-hidden="true" className="h-4 w-4" />
+                    Neue Runde
+                  </Link>
+                )}
                 <Link className={buttonVariants("secondary")} href="/dashboard">
                   Zum Dashboard
                 </Link>
@@ -245,7 +252,48 @@ export function GameLobby({
         </section>
       ) : null}
 
-      {view === "overview" ? (
+      {showFinishedView ? (
+        <section className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-zinc-200">
+              <FileText aria-hidden="true" className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-ink dark:text-zinc-50">Bloecke</h2>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {state.players.map((player) => {
+              const scoreCard = getPlayerScoreCard(state, player.id);
+              const own = player.id === currentUserPlayer?.id;
+
+              return (
+                <details
+                  className="group rounded-lg border border-slate-200 bg-white/85 p-4 shadow-sm open:shadow-card dark:border-white/10 dark:bg-white/5 dark:open:shadow-card-dark"
+                  key={player.id}
+                >
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-ink dark:text-zinc-50">
+                        {player.displayName}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
+                        {own ? "Dein Block" : "Block"}
+                      </p>
+                    </div>
+                    <Badge variant={own ? "accent" : "neutral"}>
+                      {getFilledCategoryCount(scoreCard)}/{scoreCategories.length}
+                    </Badge>
+                  </summary>
+                  <ScoreCardBlock className="mt-4" compact scoreCard={scoreCard} />
+                </details>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {!showFinishedView && view === "overview" ? (
         <>
           {state.status === "ACTIVE" ? (
             <section className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
@@ -365,38 +413,118 @@ export function GameLobby({
             </section>
           ) : null}
 
-          <section className="grid gap-3 sm:grid-cols-2">
-            <MenuCard
-              icon={Trophy}
-              meta={leader ? `${leader.displayName}: ${leader.total}` : "Noch keine Fuehrung"}
-              onClick={() => setView("scores")}
-              title="Punktestaende"
-            />
-            <MenuCard
-              icon={FileText}
-              meta={
-                currentUserScoreCard
-                  ? `Dein Block ${userFilledCount}/${scoreCategories.length}`
-                  : "Alle Bloecke"
-              }
-              onClick={() => setView("blocks")}
-              title="Bloecke"
-            />
-            <MenuCard
-              icon={Clipboard}
-              meta={state.inviteCode}
-              onClick={() => setView("invite")}
-              title="Einladung"
-            />
-            <MenuCard
-              icon={RotateCw}
-              meta={currentPlayer ? `${currentPlayer.displayName} ist dran` : "Noch offen"}
-              onClick={() => setView("status")}
-              title="Spielstatus"
-            />
-          </section>
+          {state.status === "LOBBY" ? (
+            <section className="grid gap-4 rounded-lg border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-zinc-200">
+                  <Clipboard aria-hidden="true" className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-ink dark:text-zinc-50">Einladung</h2>
+                </div>
+              </div>
+              <div className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-4 dark:border-white/10 dark:bg-white/5">
+                <p className="break-all font-mono text-2xl font-semibold tracking-tight text-ink dark:text-zinc-50">
+                  {state.inviteCode}
+                </p>
+                <p className="break-all text-sm text-slate-500 dark:text-zinc-400">{inviteLink}</p>
+                <CopyInviteLinkButton inviteLink={inviteLink} />
+              </div>
+
+              {currentUserPlayer ? (
+                <div className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-4 dark:border-white/10 dark:bg-white/5">
+                  <div>
+                    <h3 className="font-semibold text-ink dark:text-zinc-50">
+                      Freunde einladen
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">
+                      Nur bestehende Freunde koennen eingeladen werden.
+                    </p>
+                  </div>
+
+                  {state.friendInvites.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                      Keine Freunde vorhanden.
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      {state.friendInvites.map((friend) => {
+                        const alreadyInvited = friend.status === "PENDING";
+                        const accepted = friend.status === "ACCEPTED" || friend.status === "IN_GAME";
+                        const disabled = alreadyInvited || accepted;
+
+                        return (
+                          <div
+                            className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/85 px-3 py-2 dark:border-white/10 dark:bg-white/5"
+                            key={friend.id}
+                          >
+                            <span className="min-w-0 truncate text-sm font-semibold text-ink dark:text-zinc-50">
+                              {friend.username}
+                            </span>
+                            {accepted ? (
+                              <Badge variant="success">
+                                {friend.status === "IN_GAME" ? "In Runde" : "Angenommen"}
+                              </Badge>
+                            ) : alreadyInvited ? (
+                              <Badge variant="warning">Offen</Badge>
+                            ) : (
+                              <form action={inviteFriendToGameAction}>
+                                <input name="gameId" type="hidden" value={state.gameId} />
+                                <input name="friendId" type="hidden" value={friend.id} />
+                                <SubmitButton
+                                  className="min-h-9 px-3 py-2 text-xs"
+                                  disabled={disabled}
+                                  pendingLabel="Sendet..."
+                                >
+                                  <UserPlus aria-hidden="true" className="h-4 w-4" />
+                                  Einladen
+                                </SubmitButton>
+                              </form>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
+          {state.status === "ACTIVE" ? (
+            <section className="grid gap-3 sm:grid-cols-2">
+              <MenuCard
+                icon={Trophy}
+                meta={leader ? `${leader.displayName}: ${leader.total}` : "Noch keine Fuehrung"}
+                onClick={() => setView("scores")}
+                title="Punktestaende"
+              />
+              <MenuCard
+                icon={FileText}
+                meta={
+                  currentUserScoreCard
+                    ? `Dein Block ${userFilledCount}/${scoreCategories.length}`
+                    : "Alle Bloecke"
+                }
+                onClick={() => setView("blocks")}
+                title="Bloecke"
+              />
+              <MenuCard
+                icon={Clipboard}
+                meta={state.inviteCode}
+                onClick={() => setView("invite")}
+                title="Einladung"
+              />
+              <MenuCard
+                icon={RotateCw}
+                meta={currentPlayer ? `${currentPlayer.displayName} ist dran` : "Noch offen"}
+                onClick={() => setView("status")}
+                title="Spielstatus"
+              />
+            </section>
+          ) : null}
         </>
-      ) : (
+      ) : !showFinishedView ? (
         <motion.section
           animate={{ opacity: 1, y: 0 }}
           className="grid gap-4 rounded-lg border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-white/5"
@@ -543,7 +671,7 @@ export function GameLobby({
                 <CopyInviteLinkButton inviteLink={inviteLink} />
               </div>
 
-              {isOwner && state.status !== "FINISHED" ? (
+              {currentUserPlayer && state.status === "LOBBY" ? (
                 <div className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-4 dark:border-white/10 dark:bg-white/5">
                   <div>
                     <h3 className="font-semibold text-ink dark:text-zinc-50">
@@ -626,7 +754,7 @@ export function GameLobby({
             </div>
           ) : null}
         </motion.section>
-      )}
+      ) : null}
 
       {userTurn ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:hidden dark:border-white/10 dark:bg-zinc-950/95">
