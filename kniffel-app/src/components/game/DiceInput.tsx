@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Camera, CameraOff, RotateCcw, ScanSearch, X } from "lucide-react";
+import { Camera, CameraOff, RotateCcw, X } from "lucide-react";
 
 import { Dice } from "@/components/game/Dice";
 import { cn } from "@/lib/cn";
@@ -19,7 +19,7 @@ const maxDiceCount = 5;
 export function DiceInput({ onChange, values }: DiceInputProps) {
   const [scanOpen, setScanOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [scanResult, setScanResult] = useState<number | null>(null);
+  const [scanResult, setScanResult] = useState<number[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -37,11 +37,11 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
     onChange(values.filter((_, index) => index !== indexToRemove));
   }
 
-  function closeScanner() {
+  const closeScanner = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setScanOpen(false);
-  }
+  }, []);
 
   useEffect(() => {
     if (!scanOpen) {
@@ -69,7 +69,7 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
     }
 
     setScanError(null);
-    setScanResult(null);
+    setScanResult([]);
     setupCamera();
 
     return () => {
@@ -149,36 +149,66 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
     return null;
   }
 
-  function scanCurrentFrame() {
+  const scanCurrentFrame = useCallback((): number[] | null => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
       setScanError("Kein Kamerabild verfuegbar.");
-      return;
+      return null;
     }
     const context = canvas.getContext("2d");
     if (!context) {
       setScanError("Scan nicht verfuegbar.");
-      return;
+      return null;
     }
     const size = Math.min(video.videoWidth, video.videoHeight);
     const sx = Math.floor((video.videoWidth - size) / 2);
     const sy = Math.floor((video.videoHeight - size) / 2);
-    canvas.width = 240;
-    canvas.height = 240;
+    canvas.width = 500;
+    canvas.height = 100;
     context.drawImage(video, sx, sy, size, size, 0, 0, canvas.width, canvas.height);
-    const value = detectDiceValue(context.getImageData(0, 0, canvas.width, canvas.height));
-    if (!value) {
-      setScanError("Wuerfel nicht eindeutig erkannt. Bitte erneut versuchen.");
-      setScanResult(null);
+
+    const detectedValues: number[] = [];
+    const slotWidth = Math.floor(canvas.width / maxDiceCount);
+
+    for (let index = 0; index < maxDiceCount; index += 1) {
+      const sectionX = index * slotWidth;
+      const width =
+        index === maxDiceCount - 1 ? canvas.width - sectionX : slotWidth;
+      const imageData = context.getImageData(sectionX, 0, width, canvas.height);
+      const value = detectDiceValue(imageData);
+      if (!value) {
+        setScanError("Bitte alle 5 Wuerfel sichtbar in einer Reihe ausrichten.");
+        setScanResult([]);
+        return null;
+      }
+      detectedValues.push(value);
+    }
+
+    setScanError(null);
+    setScanResult(detectedValues);
+    return detectedValues;
+  }, []);
+
+  useEffect(() => {
+    if (!scanOpen) {
       return;
     }
-    setScanError(null);
-    setScanResult(value);
-    if (values.length < maxDiceCount) {
-      onChange([...values, value]);
-    }
-  }
+
+    const intervalId = window.setInterval(() => {
+      const detectedValues = scanCurrentFrame();
+      if (!detectedValues || detectedValues.length !== maxDiceCount) {
+        return;
+      }
+
+      onChange(detectedValues);
+      closeScanner();
+    }, 800);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [closeScanner, onChange, scanCurrentFrame, scanOpen]);
 
   return (
     <div className="grid gap-5">
@@ -293,9 +323,9 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
                 <video autoPlay className="aspect-square w-full bg-slate-950 object-cover" playsInline ref={videoRef} />
               </div>
               <canvas className="hidden" ref={canvasRef} />
-              {scanResult ? (
+              {scanResult.length === maxDiceCount ? (
                 <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                  Erkannt: {scanResult}
+                  Erkannt: {scanResult.join(" - ")}
                 </p>
               ) : null}
               {scanError ? (
@@ -304,14 +334,9 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
                   {scanError}
                 </p>
               ) : null}
-              <button
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
-                onClick={scanCurrentFrame}
-                type="button"
-              >
-                <ScanSearch className="h-4 w-4" />
-                Jetzt erkennen
-              </button>
+              <p className="text-xs text-slate-600 dark:text-zinc-400">
+                Halte alle 5 Wuerfel gleichzeitig im Bild. Sobald alle erkannt sind, schliesst sich der Scanner automatisch.
+              </p>
             </div>
           </motion.div>
         ) : null}
