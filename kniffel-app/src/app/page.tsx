@@ -20,7 +20,7 @@ export default function HomePage() {
               Digitaler Spielblock fuer eure Runde.
             </h1>
             <p className="max-w-xl text-base leading-7 text-slate-600 dark:text-zinc-400">
-              Punkte eintragen, Freunde einladen, Runde starten.
+              Punkte eintragen oder per Handy-Kamera scannen lassen, Freunde einladen, Runde starten.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
