@@ -54,6 +54,10 @@ export function GameTurnScreen({
     hasInitialAutoScrollRef.current = true;
 
     const frameId = window.requestAnimationFrame(() => {
+      if (!state.currentPlayerId) {
+        return;
+      }
+
       const activeCard = playerCardRefs.current[state.currentPlayerId];
       const playerRow = playerRowRef.current;
 

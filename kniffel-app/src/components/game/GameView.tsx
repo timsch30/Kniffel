@@ -33,7 +33,11 @@ export function GameView({
   restartGameAction,
   startGameAction
 }: GameViewProps) {
-  function getNextPlayerId(nextFromState: GameState): string {
+  function getNextPlayerId(nextFromState: GameState): string | null {
+    if (!nextFromState.currentPlayerId) {
+      return null;
+    }
+
     const playerIdsInOrder = [...nextFromState.players]
       .sort((a, b) => a.position - b.position)
       .map((player) => player.id);
