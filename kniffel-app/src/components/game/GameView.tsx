@@ -63,10 +63,6 @@ export function GameView({
       setTurnModeOpen(true);
     }
 
-    if (wasCurrentUserTurn.current && !nextIsCurrentUserTurn) {
-      setTurnModeOpen(false);
-    }
-
     wasCurrentUserTurn.current = nextIsCurrentUserTurn;
   }, [currentUserId, initialState.gameId, state.status]);
 

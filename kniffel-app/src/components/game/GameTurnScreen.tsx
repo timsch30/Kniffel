@@ -33,6 +33,7 @@ export function GameTurnScreen({
   const playerCardRefs = useRef<Record<string, HTMLElement | null>>({});
   const playerRowRef = useRef<HTMLDivElement | null>(null);
   const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
+  const hasInitialAutoScrollRef = useRef(false);
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
   const currentUserScoreCard = currentUserPlayer
@@ -43,11 +44,14 @@ export function GameTurnScreen({
   const total = currentUserScoreCard?.total ?? 0;
 
   useEffect(() => {
-    if (previousCurrentPlayerIdRef.current === state.currentPlayerId) {
+    const playerChanged = previousCurrentPlayerIdRef.current !== state.currentPlayerId;
+
+    if (!playerChanged && hasInitialAutoScrollRef.current) {
       return;
     }
 
     previousCurrentPlayerIdRef.current = state.currentPlayerId;
+    hasInitialAutoScrollRef.current = true;
 
     const frameId = window.requestAnimationFrame(() => {
       const activeCard = playerCardRefs.current[state.currentPlayerId];
