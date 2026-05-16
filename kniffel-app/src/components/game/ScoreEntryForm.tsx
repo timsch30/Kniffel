@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Calculator, CheckCircle2, PencilLine, Save, Sparkles } from "lucide-react";
+import { Calculator, CheckCircle2, PencilLine, Save, SlidersHorizontal, Sparkles } from "lucide-react";
 
 import { Dice } from "@/components/game/Dice";
 import { DiceInput } from "@/components/game/DiceInput";
@@ -21,7 +21,79 @@ type ScoreEntryFormProps = {
 };
 
 type EntryMode = "dice" | "manual";
+type MotionPermissionStatus =
+  | "denied"
+  | "granted"
+  | "needs-permission"
+  | "needs-secure-context"
+  | "unsupported";
+type MotionSample = {
+  x: number;
+  y: number;
+  z: number;
+};
+type DeviceMotionEventConstructorWithPermission = typeof DeviceMotionEvent & {
+  requestPermission?: () => Promise<PermissionState>;
+};
+
 const EMPTY_DICE_VALUES: number[] = [];
+const DICE_COUNT = 5;
+const INITIAL_HELD_DICE = [false, false, false, false, false];
+const SHAKE_THRESHOLDS: Record<number, number> = {
+  1: 34,
+  2: 28,
+  3: 23,
+  4: 18,
+  5: 13
+};
+const ROLL_ANIMATION_INTERVAL_MS = 120;
+const ROLL_ANIMATION_DURATION_MS = 950;
+
+function createRandomDiceValues() {
+  return Array.from({ length: DICE_COUNT }, () => Math.floor(Math.random() * 6) + 1);
+}
+
+function getMotionSample(event: DeviceMotionEvent): MotionSample | null {
+  const acceleration = event.acceleration;
+
+  if (
+    acceleration &&
+    acceleration.x !== null &&
+    acceleration.y !== null &&
+    acceleration.z !== null
+  ) {
+    return {
+      x: acceleration.x,
+      y: acceleration.y,
+      z: acceleration.z
+    };
+  }
+
+  const accelerationIncludingGravity = event.accelerationIncludingGravity;
+
+  if (
+    !accelerationIncludingGravity ||
+    accelerationIncludingGravity.x === null ||
+    accelerationIncludingGravity.y === null ||
+    accelerationIncludingGravity.z === null
+  ) {
+    return null;
+  }
+
+  return {
+    x: accelerationIncludingGravity.x,
+    y: accelerationIncludingGravity.y,
+    z: accelerationIncludingGravity.z
+  };
+}
+
+function getMotionDelta(current: MotionSample, previous: MotionSample | null) {
+  if (!previous) {
+    return 0;
+  }
+
+  return Math.abs(current.x - previous.x) + Math.abs(current.y - previous.y) + Math.abs(current.z - previous.z);
+}
 
 function isCategoryUsed(scoreCard: ScoreCard, category: ScoreCategory): boolean {
   return scoreCard[category] !== null && scoreCard[category] !== undefined;
@@ -41,8 +113,15 @@ export function ScoreEntryForm({
   const suggestionsSectionRef = useRef<HTMLElement | null>(null);
   const previousDiceCountRef = useRef(0);
   const lastShakeAtRef = useRef(0);
-  const [heldDice, setHeldDice] = useState<boolean[]>([false, false, false, false, false]);
+  const previousMotionSampleRef = useRef<MotionSample | null>(null);
+  const rollAnimationRef = useRef<number | null>(null);
+  const rollFinishRef = useRef<number | null>(null);
+  const [heldDice, setHeldDice] = useState<boolean[]>(INITIAL_HELD_DICE);
+  const [isRolling, setIsRolling] = useState(false);
+  const [motionPermission, setMotionPermission] = useState<MotionPermissionStatus>("unsupported");
+  const [rollingDiceValues, setRollingDiceValues] = useState<number[]>([]);
   const [rollCount, setRollCount] = useState(initialDiceValues.length === 5 ? 1 : 0);
+  const [shakeSensitivity, setShakeSensitivity] = useState(2);
 
   useEffect(() => {
     setDiceValues((previous) => {
@@ -55,9 +134,9 @@ export function ScoreEntryForm({
 
       return initialDiceValues;
     });
-    setHeldDice((previous) =>
-      previous.every((held) => !held) ? previous : [false, false, false, false, false]
-    );
+    setHeldDice((previous) => (previous.every((held) => !held) ? previous : INITIAL_HELD_DICE));
+    setRollingDiceValues([]);
+    setIsRolling(false);
     setRollCount((previous) => {
       const nextRollCount = initialDiceValues.length === 5 ? 1 : 0;
       return previous === nextRollCount ? previous : nextRollCount;
@@ -65,19 +144,116 @@ export function ScoreEntryForm({
   }, [initialDiceValues]);
 
   const rollDice = useCallback(() => {
-    if (rollCount >= 3) {
+    if (isRolling || rollCount >= 3) {
       return;
     }
 
-    setDiceValues((previous) => {
-      const values = previous.length === 5 ? previous : [1, 1, 1, 1, 1];
+    setIsRolling(true);
+
+    const buildNextValues = (previous: number[]) => {
+      const values = previous.length === DICE_COUNT ? previous : createRandomDiceValues();
       return values.map((value, index) => (heldDice[index] ? value : Math.floor(Math.random() * 6) + 1));
-    });
-    setRollCount((previous) => previous + 1);
-  }, [heldDice, rollCount]);
+    };
+
+    setRollingDiceValues((previous) =>
+      buildNextValues(diceValues.length === DICE_COUNT ? diceValues : previous)
+    );
+
+    rollAnimationRef.current = window.setInterval(() => {
+      setRollingDiceValues((previous) =>
+        buildNextValues(diceValues.length === DICE_COUNT ? diceValues : previous)
+      );
+    }, ROLL_ANIMATION_INTERVAL_MS);
+
+    rollFinishRef.current = window.setTimeout(() => {
+      if (rollAnimationRef.current !== null) {
+        window.clearInterval(rollAnimationRef.current);
+        rollAnimationRef.current = null;
+      }
+
+      setDiceValues((previous) => {
+        const nextValues = buildNextValues(previous);
+        setRollingDiceValues(nextValues);
+        return nextValues;
+      });
+      setRollCount((previous) => previous + 1);
+      setIsRolling(false);
+    }, ROLL_ANIMATION_DURATION_MS);
+  }, [diceValues, heldDice, isRolling, rollCount]);
+
+  useEffect(() => {
+    return () => {
+      if (rollAnimationRef.current !== null) {
+        window.clearInterval(rollAnimationRef.current);
+      }
+
+      if (rollFinishRef.current !== null) {
+        window.clearTimeout(rollFinishRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!onlineRollMode) {
+      return;
+    }
+
+    if (!window.isSecureContext) {
+      setMotionPermission("needs-secure-context");
+      return;
+    }
+
+    const MotionEventConstructor = window.DeviceMotionEvent as
+      | DeviceMotionEventConstructorWithPermission
+      | undefined;
+
+    if (!MotionEventConstructor) {
+      setMotionPermission("unsupported");
+      return;
+    }
+
+    setMotionPermission(MotionEventConstructor.requestPermission ? "needs-permission" : "granted");
+  }, [onlineRollMode]);
+
+  async function requestMotionPermission() {
+    if (!window.isSecureContext) {
+      setMotionPermission("needs-secure-context");
+      return;
+    }
+
+    const MotionEventConstructor = window.DeviceMotionEvent as
+      | DeviceMotionEventConstructorWithPermission
+      | undefined;
+
+    if (!MotionEventConstructor) {
+      setMotionPermission("unsupported");
+      return;
+    }
+
+    if (!MotionEventConstructor.requestPermission) {
+      setMotionPermission("granted");
+      return;
+    }
+
+    try {
+      const permission = await MotionEventConstructor.requestPermission();
+      setMotionPermission(permission === "granted" ? "granted" : "denied");
+    } catch {
+      setMotionPermission("denied");
+    }
+  }
+
+  function handleSensitivityChange(value: string) {
+    const nextValue = Number(value);
+
+    if (Number.isInteger(nextValue) && nextValue >= 1 && nextValue <= 5) {
+      setShakeSensitivity(nextValue);
+      previousMotionSampleRef.current = null;
+    }
+  }
 
   function toggleHeld(index: number) {
-    if (rollCount === 0) {
+    if (rollCount === 0 || isRolling) {
       return;
     }
 
@@ -85,23 +261,27 @@ export function ScoreEntryForm({
   }
 
   useEffect(() => {
-    if (!onlineRollMode || mode !== "dice") {
+    if (!onlineRollMode || mode !== "dice" || motionPermission !== "granted") {
+      previousMotionSampleRef.current = null;
       return;
     }
 
     function handleDeviceMotion(event: DeviceMotionEvent) {
-      const acceleration = event.accelerationIncludingGravity;
-
-      if (!acceleration || rollCount >= 3) {
+      if (rollCount >= 3 || isRolling) {
         return;
       }
 
-      const x = Math.abs(acceleration.x ?? 0);
-      const y = Math.abs(acceleration.y ?? 0);
-      const z = Math.abs(acceleration.z ?? 0);
+      const sample = getMotionSample(event);
+
+      if (!sample) {
+        return;
+      }
+
+      const delta = getMotionDelta(sample, previousMotionSampleRef.current);
+      previousMotionSampleRef.current = sample;
       const now = Date.now();
 
-      if (x + y + z > 30 && now - lastShakeAtRef.current > 900) {
+      if (delta > SHAKE_THRESHOLDS[shakeSensitivity] && now - lastShakeAtRef.current > 1100) {
         lastShakeAtRef.current = now;
         rollDice();
       }
@@ -109,13 +289,40 @@ export function ScoreEntryForm({
 
     window.addEventListener("devicemotion", handleDeviceMotion);
     return () => window.removeEventListener("devicemotion", handleDeviceMotion);
-  }, [mode, onlineRollMode, rollCount, rollDice]);
+  }, [isRolling, mode, motionPermission, onlineRollMode, rollCount, rollDice, shakeSensitivity]);
+
+  const displayedDiceValues = isRolling
+    ? rollingDiceValues
+    : diceValues.length === DICE_COUNT
+      ? diceValues
+      : [];
+  const diceSlots = Array.from({ length: DICE_COUNT }, (_, index) => displayedDiceValues[index] ?? null);
+  const motionPermissionLabel =
+    motionPermission === "granted"
+      ? "Schuetteln aktiv"
+      : motionPermission === "needs-permission"
+        ? "Schuetteln erst aktivieren"
+        : motionPermission === "needs-secure-context"
+          ? "HTTPS fuer Schuetteln noetig"
+        : motionPermission === "denied"
+          ? "Bewegungssensor nicht freigegeben"
+          : "Bewegungssensor nicht verfuegbar";
+  const motionPermissionHint =
+    motionPermission === "needs-secure-context"
+      ? "Der Browser blockiert Bewegungssensoren ueber diese Verbindung. Oeffne die App per HTTPS oder direkt auf localhost."
+      : motionPermission === "unsupported"
+        ? "Dieses Geraet oder dieser Browser stellt keine Bewegungssensoren bereit."
+        : motionPermission === "denied"
+          ? "Die Berechtigung wurde abgelehnt. Aktiviere Bewegungssensoren im Browser oder versuche es erneut."
+          : null;
 
   function handleModeChange(nextMode: EntryMode) {
     setMode(nextMode);
     setDiceValues([]);
     setManualPoints("");
     setSelectedCategory(null);
+    setRollingDiceValues([]);
+    setIsRolling(false);
   }
 
   async function submit(formData: FormData) {
@@ -131,7 +338,7 @@ export function ScoreEntryForm({
     parsedManualPoints <= 100;
   const canSubmit =
     selectedCategory !== null &&
-    (mode === "dice" ? diceValues.length === 5 : manualPointsValid);
+    (mode === "dice" ? diceValues.length === 5 && !isRolling : manualPointsValid);
   const selectedLabel = selectedCategory ? scoreCategoryLabels[selectedCategory] : null;
   const selectedScore =
     selectedCategory && mode === "dice" && isValidDiceValues(diceValues)
@@ -144,7 +351,12 @@ export function ScoreEntryForm({
   useEffect(() => {
     const previousDiceCount = previousDiceCountRef.current;
 
-    if (mode === "dice" && previousDiceCount < 5 && diceValues.length === 5) {
+    if (
+      mode === "dice" &&
+      !onlineRollMode &&
+      previousDiceCount < 5 &&
+      diceValues.length === 5
+    ) {
       suggestionsSectionRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start"
@@ -152,7 +364,7 @@ export function ScoreEntryForm({
     }
 
     previousDiceCountRef.current = diceValues.length;
-  }, [diceValues.length, mode]);
+  }, [diceValues.length, mode, onlineRollMode]);
 
   return (
     <form action={submit} className="grid gap-5 pb-36">
@@ -188,35 +400,78 @@ export function ScoreEntryForm({
       {mode === "dice" ? (
         <section className="grid gap-5" ref={suggestionsSectionRef}>
           {onlineRollMode ? (
-            <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
-              <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">Wurf {rollCount}/3</p>
+            <div className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">
+                  Wurf {rollCount}/3
+                </p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">
+                  {motionPermissionLabel}
+                </p>
+              </div>
               <div className="grid grid-cols-5 gap-2">
-                {(diceValues.length === 5 ? diceValues : [1, 1, 1, 1, 1]).map((value, index) => (
+                {diceSlots.map((value, index) => (
                   <button
+                    aria-pressed={heldDice[index]}
                     className={[
-                      "rounded-xl border p-1",
-                      heldDice[index] ? "border-amber-300" : "border-transparent"
+                      "rounded-xl border p-1 transition-all disabled:cursor-not-allowed",
+                      heldDice[index] ? "border-amber-300" : "border-transparent",
+                      isRolling && !heldDice[index] ? "motion-safe:animate-pulse" : ""
                     ].join(" ")}
-                    key={`${value}-${index}`}
+                    disabled={rollCount === 0 || isRolling}
+                    key={index}
                     onClick={() => toggleHeld(index)}
                     type="button"
                   >
-                    <span className="sr-only">Wuerfel halten</span>
+                    <span className="sr-only">
+                      {rollCount === 0 ? "Noch nicht gewuerfelt" : "Wuerfel halten"}
+                    </span>
                     <Dice held={heldDice[index]} value={value} />
                   </button>
                 ))}
               </div>
+              <div className="grid gap-3 rounded-lg border border-slate-200 bg-white/80 p-3 dark:border-white/10 dark:bg-white/5">
+                <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-zinc-300">
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-1.5">
+                      <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
+                      Shake-Empfindlichkeit
+                    </span>
+                    <span>Stufe {shakeSensitivity}</span>
+                  </span>
+                  <input
+                    className="w-full accent-emerald-600 dark:accent-emerald-300"
+                    max={5}
+                    min={1}
+                    onChange={(event) => handleSensitivityChange(event.target.value)}
+                    step={1}
+                    type="range"
+                    value={shakeSensitivity}
+                  />
+                </label>
+                {motionPermission === "needs-permission" || motionPermission === "denied" ? (
+                  <button
+                    className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-white/10 dark:text-zinc-50 dark:hover:border-white/20"
+                    onClick={requestMotionPermission}
+                    type="button"
+                  >
+                    Schuetteln aktivieren
+                  </button>
+                ) : null}
+                {motionPermissionHint ? (
+                  <p className="text-xs font-medium text-slate-500 dark:text-zinc-400">
+                    {motionPermissionHint}
+                  </p>
+                ) : null}
+              </div>
               <button
-                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                disabled={rollCount >= 3}
+                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-zinc-950"
+                disabled={rollCount >= 3 || isRolling}
                 onClick={rollDice}
                 type="button"
               >
-                Wuerfeln
+                {isRolling ? "Wuerfelt..." : "Wuerfeln"}
               </button>
-              <p className="text-xs text-slate-500 dark:text-zinc-400">
-                Tipp: Du kannst alternativ dein Handy schuetteln.
-              </p>
             </div>
           ) : (
             <DiceInput onChange={setDiceValues} values={diceValues} />
