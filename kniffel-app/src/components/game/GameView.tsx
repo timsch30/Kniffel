@@ -33,6 +33,19 @@ export function GameView({
   restartGameAction,
   startGameAction
 }: GameViewProps) {
+  function getNextPlayerId(nextFromState: GameState): string {
+    const playerIdsInOrder = [...nextFromState.players]
+      .sort((a, b) => a.position - b.position)
+      .map((player) => player.id);
+    const currentIndex = playerIdsInOrder.indexOf(nextFromState.currentPlayerId);
+
+    if (currentIndex === -1 || playerIdsInOrder.length === 0) {
+      return nextFromState.currentPlayerId;
+    }
+
+    return playerIdsInOrder[(currentIndex + 1) % playerIdsInOrder.length];
+  }
+
   const [state, setState] = useState(initialState);
   const [pollError, setPollError] = useState<string | null>(null);
   const [turnModeOpen, setTurnModeOpen] = useState(() => initialState.status === "ACTIVE");
@@ -123,22 +136,11 @@ export function GameView({
           enterScoreAction={enterScoreAction}
           onBackToLobby={() => setTurnModeOpen(false)}
           onSaved={() => {
-            const currentPlayerIdBeforeSave = state.currentPlayerId;
-
-            void (async () => {
-              let refreshedState = await refreshState();
-
-              for (let attempt = 0; attempt < 4; attempt += 1) {
-                if (refreshedState.currentPlayerId !== currentPlayerIdBeforeSave) {
-                  break;
-                }
-
-                await new Promise((resolve) => {
-                  window.setTimeout(resolve, 350);
-                });
-                refreshedState = await refreshState();
-              }
-            })();
+            setState((previousState) => ({
+              ...previousState,
+              currentPlayerId: getNextPlayerId(previousState)
+            }));
+            void refreshState();
           }}
           state={state}
         />
