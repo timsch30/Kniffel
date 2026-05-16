@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowDown,
@@ -95,6 +95,13 @@ function viewTitle(view: LobbyView): string {
   return titles[view];
 }
 
+const lobbyTabs: Array<{ id: Exclude<LobbyView, "players">; label: string }> = [
+  { id: "overview", label: "Uebersicht" },
+  { id: "scores", label: "Punkte" },
+  { id: "blocks", label: "Bloecke" },
+  { id: "status", label: "Status" }
+];
+
 function MenuCard({
   icon: Icon,
   meta,
@@ -142,6 +149,7 @@ export function GameLobby({
   state
 }: GameLobbyProps) {
   const [view, setView] = useState<LobbyView>("overview");
+  const shouldReduceMotion = useReducedMotion();
   const currentPlayer = getCurrentPlayer(state);
   const currentUserPlayer = getPlayerByUserId(state, currentUserId);
   const currentUserScoreCard = getCurrentUserScoreCard(state, currentUserId);
@@ -198,6 +206,48 @@ export function GameLobby({
         </div>
       </section>
 
+      {!showFinishedView && state.status === "ACTIVE" ? (
+        <nav
+          aria-label="Lobby-Ansichten"
+          className="rounded-lg border border-slate-200/80 bg-white/80 p-1 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
+        >
+          <div className="grid grid-cols-4 gap-1">
+            {lobbyTabs.map((tab) => {
+              const active = view === tab.id;
+
+              return (
+                <button
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "relative min-h-10 overflow-hidden rounded-lg px-2 text-xs font-semibold transition-colors sm:text-sm",
+                    active
+                      ? "text-ink dark:text-zinc-50"
+                      : "text-slate-500 hover:text-ink dark:text-zinc-400 dark:hover:text-zinc-50"
+                  )}
+                  key={tab.id}
+                  onClick={() => setView(tab.id)}
+                  type="button"
+                >
+                  {active ? (
+                    <motion.span
+                      aria-hidden="true"
+                      className="absolute inset-0 rounded-lg bg-white shadow-sm dark:bg-zinc-900"
+                      layoutId="lobby-active-view"
+                      transition={
+                        shouldReduceMotion
+                          ? { duration: 0.01 }
+                          : { damping: 28, stiffness: 420, type: "spring" }
+                      }
+                    />
+                  ) : null}
+                  <span className="relative truncate">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      ) : null}
+
       {state.winner && showFinishedView ? (
         <section className="rounded-lg border border-amber-300/50 bg-amber-50 p-4 shadow-card dark:border-amber-300/20 dark:bg-amber-300/10">
           <div className="flex items-start gap-3">
@@ -213,19 +263,36 @@ export function GameLobby({
                   Endstand
                 </p>
                 <div className="grid gap-1.5">
-                  {state.ranking.map((entry) => (
-                    <div
-                      className="flex items-center justify-between gap-3 rounded-lg border border-amber-200/70 bg-white/70 px-3 py-2 text-sm dark:border-amber-200/10 dark:bg-white/10"
-                      key={entry.playerId}
-                    >
-                      <span className="min-w-0 truncate font-semibold text-amber-950 dark:text-amber-50">
-                        {entry.rank}. {entry.displayName}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-amber-950 dark:text-amber-50">
-                        {entry.total} Punkte
-                      </span>
-                    </div>
-                  ))}
+                  {state.ranking.map((entry, index) => {
+                    const active = entry.isCurrentPlayer;
+
+                    return (
+                      <motion.div
+                        animate={{ opacity: 1, y: 0 }}
+                        className={cn(
+                          "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm",
+                          active
+                            ? "border-emerald-400/50 bg-emerald-50/80 dark:border-emerald-300/25 dark:bg-emerald-300/10"
+                            : "border-amber-200/70 bg-white/70 dark:border-amber-200/10 dark:bg-white/10"
+                        )}
+                        initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
+                        key={entry.playerId}
+                        layout="position"
+                        transition={
+                          shouldReduceMotion
+                            ? { duration: 0.01 }
+                            : { delay: index * 0.025, duration: 0.18 }
+                        }
+                      >
+                        <span className="min-w-0 truncate font-semibold text-amber-950 dark:text-amber-50">
+                          {entry.rank}. {entry.displayName}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-amber-950 dark:text-amber-50">
+                          {entry.total} Punkte
+                        </span>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -521,8 +588,8 @@ export function GameLobby({
         <motion.section
           animate={{ opacity: 1, y: 0 }}
           className="grid gap-4 rounded-lg border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-white/10 dark:bg-white/5"
-          initial={{ opacity: 0, y: 8 }}
-          transition={{ duration: 0.18 }}
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+          transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.18 }}
         >
           {detailHeader}
 
@@ -599,9 +666,14 @@ export function GameLobby({
                         ? "border-emerald-500/30 bg-emerald-50 dark:border-emerald-300/30 dark:bg-emerald-300/10"
                         : "border-slate-200 bg-white/85 dark:border-white/10 dark:bg-white/5"
                     )}
-                    initial={{ opacity: 0, y: 6 }}
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
                     key={entry.playerId}
-                    transition={{ delay: index * 0.025, duration: 0.18 }}
+                    layout="position"
+                    transition={
+                      shouldReduceMotion
+                        ? { duration: 0.01 }
+                        : { delay: index * 0.025, duration: 0.18 }
+                    }
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">

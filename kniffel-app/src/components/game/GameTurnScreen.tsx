@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Dices, FilePenLine, Smartphone, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowLeft, CheckCircle2, Dices, FilePenLine, Smartphone, Trophy, X } from "lucide-react";
 
 import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
 import { ScoreEntryForm } from "@/components/game/ScoreEntryForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { getFilledCategoryCount, getPlayerScoreCard, isUserTurn } from "@/game/game-state";
+import { getFilledCategoryCount, getNextPlayer, getPlayerScoreCard, isUserTurn } from "@/game/game-state";
 import { scoreCategories } from "@/game/scorecard";
 import type { GameState } from "@/game/state";
 import { cn } from "@/lib/cn";
@@ -22,6 +22,14 @@ type GameTurnScreenProps = {
   state: GameState;
 };
 
+type TurnFeedback = {
+  id: number;
+  leaderName?: string;
+  nextIsCurrentUser: boolean;
+  nextPlayerName: string;
+  roundNumber: number;
+};
+
 export function GameTurnScreen({
   currentUserId,
   enterScoreAction,
@@ -32,6 +40,7 @@ export function GameTurnScreen({
   const [entryOpen, setEntryOpen] = useState(false);
   const [rollMode, setRollMode] = useState<"real" | "online" | null>(null);
   const [showRollModePicker, setShowRollModePicker] = useState(false);
+  const [turnFeedback, setTurnFeedback] = useState<TurnFeedback | null>(null);
   const [viewedPlayerId, setViewedPlayerId] = useState(
     () =>
       state.currentPlayerId ??
@@ -44,6 +53,8 @@ export function GameTurnScreen({
   const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
   const hasInitialAutoScrollRef = useRef(false);
   const scrollFrameRef = useRef<number | null>(null);
+  const turnFeedbackTimeoutRef = useRef<number | null>(null);
+  const shouldReduceMotion = useReducedMotion();
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
   const viewedPlayer = state.players.find((player) => player.id === viewedPlayerId);
   const viewedPlayerScoreCard = viewedPlayer ? getPlayerScoreCard(state, viewedPlayer.id) : null;
@@ -98,6 +109,27 @@ export function GameTurnScreen({
       updateViewedPlayerFromScroll();
       scrollFrameRef.current = null;
     });
+  }
+
+  function showSavedFeedback() {
+    const nextPlayer = getNextPlayer(state);
+
+    if (turnFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(turnFeedbackTimeoutRef.current);
+    }
+
+    setTurnFeedback({
+      id: Date.now(),
+      leaderName: state.ranking[0]?.displayName,
+      nextIsCurrentUser: nextPlayer?.userId === currentUserId,
+      nextPlayerName: nextPlayer?.displayName ?? "naechster Spieler",
+      roundNumber: state.roundNumber
+    });
+
+    turnFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setTurnFeedback(null);
+      turnFeedbackTimeoutRef.current = null;
+    }, shouldReduceMotion ? 1000 : 1350);
   }
 
   useEffect(() => {
@@ -158,6 +190,10 @@ export function GameTurnScreen({
     return () => {
       if (scrollFrameRef.current !== null) {
         window.cancelAnimationFrame(scrollFrameRef.current);
+      }
+
+      if (turnFeedbackTimeoutRef.current !== null) {
+        window.clearTimeout(turnFeedbackTimeoutRef.current);
       }
     };
   }, []);
@@ -246,22 +282,29 @@ export function GameTurnScreen({
           <div className="grid gap-1.5">
             {state.ranking.map((entry) => {
               const viewed = entry.playerId === viewedPlayerId;
+              const active = entry.isCurrentPlayer;
 
               return (
-                <div
+                <motion.div
+                  animate={{ opacity: 1, y: 0 }}
                   className={cn(
-                    "flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm",
-                    viewed
-                      ? "bg-emerald-50 font-semibold text-emerald-950 dark:bg-emerald-300/10 dark:text-emerald-50"
-                      : "text-slate-600 dark:text-zinc-400"
+                    "flex items-center justify-between gap-3 rounded-md border px-2 py-1.5 text-sm transition-colors",
+                    active
+                      ? "border-emerald-500/30 bg-emerald-50 font-semibold text-emerald-950 shadow-sm dark:border-emerald-300/25 dark:bg-emerald-300/10 dark:text-emerald-50"
+                      : viewed
+                        ? "border-emerald-200/70 bg-emerald-50/70 font-semibold text-emerald-950 dark:border-emerald-300/15 dark:bg-emerald-300/10 dark:text-emerald-50"
+                        : "border-transparent text-slate-600 dark:text-zinc-400"
                   )}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
                   key={entry.playerId}
+                  layout="position"
+                  transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.18 }}
                 >
                   <span className="min-w-0 truncate">
                     {entry.rank}. {entry.displayName}
                   </span>
                   <span className="shrink-0 tabular-nums">{entry.total}</span>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -287,6 +330,48 @@ export function GameTurnScreen({
 
         </div>
       ) : null}
+
+      <AnimatePresence>
+        {turnFeedback ? (
+          <motion.div
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            aria-live="polite"
+            className="pointer-events-none fixed inset-0 z-[95] grid place-items-center p-4"
+            exit={{ opacity: 0, y: shouldReduceMotion ? 0 : -8, scale: 0.98 }}
+            initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 10, scale: 0.98 }}
+            key={turnFeedback.id}
+            role="status"
+            transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.2, ease: "easeOut" }}
+          >
+            <div className="w-full max-w-sm rounded-lg border border-emerald-200 bg-white p-4 text-ink shadow-2xl dark:border-emerald-300/20 dark:bg-zinc-900 dark:text-zinc-50">
+              <div className="flex items-start gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-300/10 dark:text-emerald-200">
+                  <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">Score gespeichert</p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-zinc-300">
+                    {turnFeedback.nextIsCurrentUser
+                      ? "Du bist wieder dran."
+                      : `Weiter: ${turnFeedback.nextPlayerName}`}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-500 dark:text-zinc-400">
+                    <span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-white/10">
+                      Runde {turnFeedback.roundNumber}
+                    </span>
+                    {turnFeedback.leaderName ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-amber-800 dark:bg-amber-300/10 dark:text-amber-100">
+                        <Trophy aria-hidden="true" className="h-3.5 w-3.5" />
+                        {turnFeedback.leaderName}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence>
         {entryOpen && currentUserScoreCard ? (
@@ -323,6 +408,7 @@ export function GameTurnScreen({
                 action={enterScoreAction}
                 onlineRollMode={rollMode === "online"}
                 onSaved={() => {
+                  showSavedFeedback();
                   setEntryOpen(false);
                   onSaved();
                 }}

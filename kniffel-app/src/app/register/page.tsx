@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { DashboardBackdrop } from "@/components/dashboard/DashboardBackdrop";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Alert } from "@/components/ui/Alert";
 import { Card } from "@/components/ui/Card";
@@ -27,8 +28,14 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
   const { error } = await searchParams;
 
   return (
-    <PageContainer className="grid min-h-[calc(100svh-5rem)] content-center" size="sm">
-      <Card className="p-6 sm:p-7" eyebrow="Neues Konto" title="Registrieren">
+    <>
+      <DashboardBackdrop />
+      <PageContainer className="felt-ui grid min-h-[calc(100svh-5rem)] content-center" size="sm">
+      <Card
+        className="!border-white/10 !bg-white/[0.09] p-6 text-white shadow-[0_24px_80px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-7"
+        eyebrow="Neues Konto"
+        title="Registrieren"
+      >
         {error ? <Alert className="mb-4" variant="danger">{error}</Alert> : null}
         <form action={registerAction} className="grid gap-4">
           <Input autoComplete="username" label="Username" name="username" type="text" />
@@ -47,13 +54,14 @@ export default async function RegisterPage({ searchParams }: RegisterPageProps) 
           />
           <SubmitButton pendingLabel="Erstelle Konto...">Registrieren</SubmitButton>
         </form>
-        <p className="mt-5 text-sm text-slate-600 dark:text-zinc-400">
+        <p className="mt-5 text-sm text-emerald-50/70">
           Schon ein Konto?{" "}
-          <Link className="font-semibold text-felt hover:text-ink dark:text-emerald-300 dark:hover:text-white" href="/login">
+          <Link className="font-semibold text-amber-100 hover:text-white" href="/login">
             Einloggen
           </Link>
         </p>
       </Card>
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 }

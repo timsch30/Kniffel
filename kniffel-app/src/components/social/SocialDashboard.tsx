@@ -116,20 +116,20 @@ export function SocialDashboard({
   const getFriendStats = (friend: Friend) => calculatePlayerStats(games, friend.id);
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-5 text-white">
       {error ? <Alert variant="danger">{error}</Alert> : null}
 
       <section className="grid gap-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="grid gap-2">
-            <Badge className="w-fit" variant="accent">
+            <Badge className="w-fit border-brass/40 bg-brass/20 text-amber-50" variant="accent">
               Social Stats
             </Badge>
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl dark:text-zinc-50">
+              <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                 Freunde, Rivalen, Fortschritt.
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-zinc-400">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50/75">
                 Freunde verwalten und echte Runden im Blick behalten.
               </p>
             </div>
@@ -143,7 +143,7 @@ export function SocialDashboard({
 
         <nav
           aria-label="Social Navigation"
-          className="grid grid-cols-3 rounded-lg border border-slate-200/80 bg-white/75 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+          className="grid grid-cols-3 rounded-lg border border-white/10 bg-white/[0.08] p-1 shadow-sm backdrop-blur-xl"
         >
           {tabs.map(({ icon: Icon, id, label }) => {
             const active = activeTab === id;
@@ -154,8 +154,8 @@ export function SocialDashboard({
                 className={cn(
                   "relative isolate flex min-h-11 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors sm:text-sm",
                   active
-                    ? "text-ink dark:text-zinc-950"
-                    : "text-slate-500 hover:text-ink dark:text-zinc-400 dark:hover:text-zinc-100"
+                    ? "!text-ink"
+                    : "text-emerald-50/65 hover:text-white"
                 )}
                 key={id}
                 onClick={() => setActiveTab(id)}
@@ -163,7 +163,7 @@ export function SocialDashboard({
               >
                 {active ? (
                   <motion.span
-                    className="absolute inset-0 -z-10 rounded-md bg-white shadow-sm dark:bg-zinc-100"
+                    className="absolute inset-0 -z-10 rounded-md bg-brass shadow-sm"
                     layoutId="social-tab"
                     transition={{ duration: 0.18, ease: "easeOut" }}
                   />
@@ -209,11 +209,11 @@ export function SocialDashboard({
           transition={{ duration: 0.2 }}
         >
           <Leaderboard entries={leaderboard} />
-          <Card className="p-4">
-            <h2 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+          <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+            <h2 className="text-lg font-semibold tracking-tight text-white">
               Rivalen Radar
             </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">
+            <p className="mt-1 text-sm text-emerald-50/70">
               Nur die wichtigsten Social-Stats.
             </p>
             <div className="mt-4 grid gap-3">
@@ -234,8 +234,8 @@ export function SocialDashboard({
         >
           <div className="grid gap-4">
             <PlayerProfileCard player={user} stats={userStats} />
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+            <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+              <h2 className="text-lg font-semibold tracking-tight text-white">
                 Kniffel Stats
               </h2>
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -247,13 +247,13 @@ export function SocialDashboard({
             </Card>
           </div>
           <div className="grid gap-4">
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+            <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+              <h2 className="text-lg font-semibold tracking-tight text-white">
                 Freundesvergleich
               </h2>
               <div className="mt-4 grid gap-2">
                 {friends.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                  <div className="rounded-lg border border-dashed border-white/15 bg-black/15 p-4 text-sm text-emerald-50/70">
                     Noch keine Freunde.
                   </div>
                 ) : null}
@@ -262,7 +262,7 @@ export function SocialDashboard({
 
                   return (
                     <button
-                      className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]"
+                      className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:bg-white/10"
                       key={friend.id}
                       onClick={() => {
                         setSelectedFriendId(friend.id);
@@ -271,14 +271,14 @@ export function SocialDashboard({
                       type="button"
                     >
                       <span>
-                        <span className="block text-sm font-semibold text-ink dark:text-zinc-50">
+                        <span className="block text-sm font-semibold text-white">
                           {friend.name}
                         </span>
-                        <span className="text-xs text-slate-500 dark:text-zinc-400">
+                        <span className="text-xs text-emerald-50/65">
                           {stats.gamesWon} Siege / {stats.averagePoints} Schnitt
                         </span>
                       </span>
-                      <span className="text-xs font-semibold text-felt dark:text-emerald-300">
+                      <span className="text-xs font-semibold text-amber-100">
                         Oeffnen
                       </span>
                     </button>

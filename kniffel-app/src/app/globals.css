@@ -69,6 +69,58 @@ textarea {
   background: rgba(31, 122, 91, 0.18);
 }
 
+.felt-ui label {
+  color: rgba(236, 253, 245, 0.9);
+}
+
+.felt-ui .text-ink,
+.felt-ui .text-slate-800,
+.felt-ui .text-slate-700 {
+  color: #ffffff;
+}
+
+.felt-ui .text-slate-600,
+.felt-ui .text-slate-500,
+.felt-ui .text-zinc-400 {
+  color: rgba(236, 253, 245, 0.72);
+}
+
+.felt-ui .text-felt {
+  color: #f4b942;
+}
+
+.felt-ui .shadow-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+  box-shadow: 0 18px 58px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(16px);
+}
+
+.felt-ui input {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.16);
+  color: #ffffff;
+}
+
+.felt-ui input::placeholder {
+  color: rgba(236, 253, 245, 0.42);
+}
+
+.felt-ui input:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.felt-ui input:focus {
+  border-color: rgba(244, 185, 66, 0.72);
+  --tw-ring-color: rgba(244, 185, 66, 0.2);
+}
+
+.felt-ui label + input + p,
+.felt-ui input + p {
+  color: rgba(236, 253, 245, 0.72);
+}
+
 :focus-visible {
   outline: 2px solid #167857;
   outline-offset: 3px;

@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Calculator, CheckCircle2, PencilLine, Save, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  Calculator,
+  CheckCircle2,
+  Dices,
+  LockKeyhole,
+  PencilLine,
+  Save,
+  SlidersHorizontal,
+  Sparkles,
+  X
+} from "lucide-react";
 
 import { Dice } from "@/components/game/Dice";
 import { DiceInput } from "@/components/game/DiceInput";
@@ -10,7 +21,12 @@ import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
 import { ScoreSuggestions } from "@/components/game/ScoreSuggestions";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { scoreCategories, scoreCategoryLabels } from "@/game/scorecard";
-import { calculateScoreForCategory, getAvailableScoreSuggestions, isValidDiceValues } from "@/game/scoring";
+import {
+  calculateScoreForCategory,
+  getAvailableScoreSuggestions,
+  getRankedScoreSuggestions,
+  isValidDiceValues
+} from "@/game/scoring";
 import type { ScoreCard, ScoreCategory } from "@/game/types";
 
 type ScoreEntryFormProps = {
@@ -125,6 +141,7 @@ export function ScoreEntryForm({
   const [rollingDiceValues, setRollingDiceValues] = useState<number[]>([]);
   const [rollCount, setRollCount] = useState(initialDiceValues.length === 5 ? 1 : 0);
   const [shakeSensitivity, setShakeSensitivity] = useState(2);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     setDiceValues((previous) => {
@@ -346,6 +363,47 @@ export function ScoreEntryForm({
     onSaved?.();
   }
 
+  function getDiceButtonAnimate(index: number, held: boolean) {
+    if (shouldReduceMotion) {
+      return { rotate: 0, scale: held ? 0.97 : 1, y: 0 };
+    }
+
+    if (isRolling && !held) {
+      const direction = index % 2 === 0 ? 1 : -1;
+
+      return {
+        rotate: [0, 12 * direction, -10 * direction, 0],
+        scale: [1, 1.08, 0.96, 1.02],
+        y: [0, -12, 5, 0]
+      };
+    }
+
+    return { rotate: 0, scale: held ? 0.96 : 1, y: 0 };
+  }
+
+  function getDiceButtonTransition(index: number, held: boolean) {
+    if (shouldReduceMotion) {
+      return { duration: 0.01 };
+    }
+
+    if (isRolling && !held) {
+      return {
+        delay: index * 0.035,
+        duration: 0.48,
+        ease: "easeInOut" as const,
+        repeat: Infinity,
+        repeatType: "mirror" as const
+      };
+    }
+
+    return {
+      damping: 24,
+      mass: 0.75,
+      stiffness: 520,
+      type: "spring" as const
+    };
+  }
+
   const parsedManualPoints = Number(manualPoints);
   const manualPointsValid =
     manualPoints !== "" &&
@@ -365,6 +423,8 @@ export function ScoreEntryForm({
   const selectedIsStrike = selectedScore === 0;
   const validDiceValues = mode === "dice" && isValidDiceValues(diceValues);
   const diceSuggestions = validDiceValues ? getAvailableScoreSuggestions(scoreCard, diceValues) : undefined;
+  const recommendedSuggestion =
+    validDiceValues ? getRankedScoreSuggestions(scoreCard, diceValues)[0] : undefined;
   const confirmationScore =
     confirmationCategory && validDiceValues
       ? calculateScoreForCategory(confirmationCategory, diceValues)
@@ -424,47 +484,105 @@ export function ScoreEntryForm({
         <section className="grid gap-5" ref={suggestionsSectionRef}>
           {onlineRollMode ? (
             <div className="grid gap-4 lg:grid-cols-[minmax(18rem,0.85fr)_minmax(22rem,1.15fr)] lg:items-start">
-              <div className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">
-                    Wurf {rollCount}/3
-                  </p>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">
+              <section className="relative grid gap-4 overflow-hidden rounded-lg border border-emerald-900/10 bg-[linear-gradient(145deg,rgba(22,120,87,0.92),rgba(17,24,39,0.94))] p-3 shadow-card dark:border-emerald-200/10 dark:bg-[linear-gradient(145deg,rgba(6,78,59,0.82),rgba(9,9,11,0.96))] dark:shadow-card-dark">
+                <motion.div
+                  aria-hidden="true"
+                  animate={
+                    shouldReduceMotion
+                      ? { backgroundPosition: "50% 50%" }
+                      : { backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }
+                  }
+                  className="absolute inset-0 opacity-40 [background-size:220%_220%] bg-[linear-gradient(120deg,rgba(255,255,255,0.18),transparent_32%,rgba(244,185,66,0.16),transparent_68%,rgba(16,185,129,0.16))]"
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0.01 }
+                      : { duration: 7, ease: "easeInOut", repeat: Infinity }
+                  }
+                />
+                <div className="relative flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase text-emerald-50/80">
+                      <Dices aria-hidden="true" className="h-3.5 w-3.5" />
+                      Online-Wurf
+                    </p>
+                    <p className="mt-0.5 text-sm font-semibold text-white">
+                      Wurf {rollCount}/3
+                    </p>
+                  </div>
+                  <motion.p
+                    animate={
+                      shouldReduceMotion || motionPermission !== "granted"
+                        ? { opacity: 1, scale: 1 }
+                        : { opacity: [0.78, 1, 0.78], scale: [1, 1.03, 1] }
+                    }
+                    className="max-w-[10rem] truncate rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-right text-xs font-semibold text-emerald-50 shadow-sm"
+                    transition={
+                      shouldReduceMotion
+                        ? { duration: 0.01 }
+                        : { duration: 1.8, ease: "easeInOut", repeat: Infinity }
+                    }
+                  >
                     {motionPermissionLabel}
-                  </p>
+                  </motion.p>
                 </div>
-                <div className="grid grid-cols-5 gap-2">
-                  {diceSlots.map((value, index) => (
-                    <button
-                      aria-pressed={heldDice[index]}
-                      className={[
-                        "rounded-xl border p-1 transition-all disabled:cursor-not-allowed",
-                        heldDice[index] ? "border-amber-300" : "border-transparent",
-                        isRolling && !heldDice[index] ? "motion-safe:animate-pulse" : ""
-                      ].join(" ")}
-                      disabled={rollCount === 0 || isRolling}
-                      key={index}
-                      onClick={() => toggleHeld(index)}
-                      type="button"
-                    >
-                      <span className="sr-only">
-                        {rollCount === 0 ? "Noch nicht gewuerfelt" : "Wuerfel halten"}
-                      </span>
-                      <Dice held={heldDice[index]} value={value} />
-                    </button>
-                  ))}
+
+                <div className="relative rounded-lg border border-white/15 bg-emerald-950/25 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-24px_48px_rgba(0,0,0,0.18)] dark:bg-black/25">
+                  <div className="grid grid-cols-5 gap-2 sm:gap-3">
+                    {diceSlots.map((value, index) => (
+                      <motion.button
+                        animate={getDiceButtonAnimate(index, heldDice[index])}
+                        aria-label={
+                          rollCount === 0
+                            ? `Wuerfel ${index + 1}: noch nicht gewuerfelt`
+                            : heldDice[index]
+                              ? `Wuerfel ${index + 1}: ${value ?? ""}, gehalten. Freigeben`
+                              : `Wuerfel ${index + 1}: ${value ?? ""}. Halten`
+                        }
+                        aria-pressed={heldDice[index]}
+                        className={[
+                          "relative aspect-square rounded-xl border p-1 transition-colors focus-visible:ring-4 focus-visible:ring-brass/40 disabled:cursor-not-allowed",
+                          heldDice[index]
+                            ? "border-brass/80 bg-amber-200/10 shadow-[0_12px_30px_rgba(244,185,66,0.24)]"
+                            : "border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10",
+                          isRolling && !heldDice[index] ? "z-10" : ""
+                        ].join(" ")}
+                        disabled={rollCount === 0 || isRolling}
+                        key={index}
+                        onClick={() => toggleHeld(index)}
+                        transition={getDiceButtonTransition(index, heldDice[index])}
+                        type="button"
+                        whileTap={
+                          shouldReduceMotion || rollCount === 0 || isRolling ? undefined : { scale: 0.94 }
+                        }
+                      >
+                        <span className="sr-only">
+                          {rollCount === 0 ? "Noch nicht gewuerfelt" : "Wuerfel halten"}
+                        </span>
+                        <Dice held={heldDice[index]} value={value} />
+                        {heldDice[index] ? (
+                          <span
+                            aria-hidden="true"
+                            className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full border border-amber-200/70 bg-amber-50 text-amber-800 shadow-sm dark:border-amber-100/30 dark:bg-amber-300/90 dark:text-amber-950"
+                          >
+                            <LockKeyhole className="h-3 w-3" />
+                          </span>
+                        ) : null}
+                      </motion.button>
+                    ))}
+                  </div>
                 </div>
-                <div className="grid gap-3 rounded-lg border border-slate-200 bg-white/80 p-3 dark:border-white/10 dark:bg-white/5">
+
+                <div className="relative grid gap-3 rounded-lg border border-white/10 bg-white/10 p-3 text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
                   <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-zinc-300">
                     <span className="flex items-center justify-between gap-3">
-                      <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1.5 text-emerald-50">
                         <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
                         Shake-Empfindlichkeit
                       </span>
-                      <span>Stufe {shakeSensitivity}</span>
+                      <span className="text-emerald-50/80">Stufe {shakeSensitivity}</span>
                     </span>
                     <input
-                      className="w-full accent-emerald-600 dark:accent-emerald-300"
+                      className="w-full accent-brass dark:accent-brass"
                       max={5}
                       min={1}
                       onChange={(event) => handleSensitivityChange(event.target.value)}
@@ -475,7 +593,7 @@ export function ScoreEntryForm({
                   </label>
                   {motionPermission === "needs-permission" || motionPermission === "denied" ? (
                     <button
-                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-white/10 dark:text-zinc-50 dark:hover:border-white/20"
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-semibold text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/90 dark:text-zinc-950"
                       onClick={requestMotionPermission}
                       type="button"
                     >
@@ -483,20 +601,21 @@ export function ScoreEntryForm({
                     </button>
                   ) : null}
                   {motionPermissionHint ? (
-                    <p className="text-xs font-medium text-slate-500 dark:text-zinc-400">
+                    <p className="text-xs font-medium text-emerald-50/75">
                       {motionPermissionHint}
                     </p>
                   ) : null}
                 </div>
                 <button
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-zinc-950"
+                  className="relative inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 dark:bg-white dark:text-zinc-950 dark:hover:bg-amber-50"
                   disabled={rollCount >= 3 || isRolling}
                   onClick={rollDice}
                   type="button"
                 >
+                  <Dices aria-hidden="true" className="h-4 w-4" />
                   {isRolling ? "Wuerfelt..." : "Wuerfeln"}
                 </button>
-              </div>
+              </section>
 
               <section className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
                 <div className="flex items-center justify-between gap-3 px-1">
@@ -505,20 +624,65 @@ export function ScoreEntryForm({
                     {validDiceValues ? "Feld klicken" : "erst wuerfeln"}
                   </span>
                 </div>
-                <ScoreCardBlock
-                  compact
-                  onSelectCategory={(category) => {
-                    if (!validDiceValues || isRolling) {
-                      return;
-                    }
+                <AnimatePresence mode="wait">
+                  {recommendedSuggestion ? (
+                    <motion.button
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-left shadow-sm dark:border-amber-300/25 dark:bg-amber-300/10"
+                      exit={{ opacity: 0, scale: shouldReduceMotion ? 1 : 0.98, y: 0 }}
+                      initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.98, y: 6 }}
+                      key={`${diceValues.join("-")}-${recommendedSuggestion.category}`}
+                      onClick={() => {
+                        if (isRolling) {
+                          return;
+                        }
 
-                    setSelectedCategory(category);
-                    setConfirmationCategory(category);
-                  }}
-                  scoreCard={scoreCard}
-                  scoreSuggestions={diceSuggestions}
-                  selectedCategory={selectedCategory}
-                />
+                        setSelectedCategory(recommendedSuggestion.category);
+                        setConfirmationCategory(recommendedSuggestion.category);
+                      }}
+                      transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.2 }}
+                      type="button"
+                      whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
+                    >
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-amber-800 dark:text-amber-100">
+                          <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
+                          Beste Option
+                        </span>
+                        <span className="mt-0.5 block truncate text-sm font-semibold text-ink dark:text-zinc-50">
+                          {recommendedSuggestion.label}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right text-sm font-semibold tabular-nums text-amber-900 dark:text-amber-100">
+                        {recommendedSuggestion.score}
+                        <span className="block text-[0.68rem] font-medium">
+                          {recommendedSuggestion.action === "strike" ? "streichen" : "Punkte"}
+                        </span>
+                      </span>
+                    </motion.button>
+                  ) : null}
+                </AnimatePresence>
+                <motion.div
+                  animate={{ opacity: 1, y: 0 }}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
+                  key={validDiceValues ? diceValues.join("-") : "empty-scorecard"}
+                  transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.18 }}
+                >
+                  <ScoreCardBlock
+                    compact
+                    onSelectCategory={(category) => {
+                      if (!validDiceValues || isRolling) {
+                        return;
+                      }
+
+                      setSelectedCategory(category);
+                      setConfirmationCategory(category);
+                    }}
+                    scoreCard={scoreCard}
+                    scoreSuggestions={diceSuggestions}
+                    selectedCategory={selectedCategory}
+                  />
+                </motion.div>
               </section>
             </div>
           ) : (

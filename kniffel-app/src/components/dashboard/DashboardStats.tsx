@@ -104,17 +104,17 @@ export function DashboardStats({
         const content = (
           <Card
             className={cn(
-              "h-full p-3 shadow-sm sm:p-3.5",
+              "h-full !border-white/10 !bg-white/[0.09] p-3 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:p-3.5",
               href ? "transition-transform hover:-translate-y-0.5" : null,
               highlight
-                ? "border-emerald-500/50 bg-emerald-100/90 ring-1 ring-emerald-500/20 dark:border-emerald-300/35 dark:bg-emerald-300/15 dark:ring-emerald-300/20"
+                ? "!border-brass/45 !bg-brass/15 ring-1 ring-brass/25"
                 : null
             )}
           >
             <div
               className={cn(
-                "flex items-center justify-between gap-2 text-slate-500 dark:text-zinc-400",
-                highlight ? "text-emerald-700 dark:text-emerald-200" : null
+                "flex items-center justify-between gap-2 text-emerald-50/65",
+                highlight ? "text-amber-100" : null
               )}
             >
               <p className="truncate text-[0.7rem] font-semibold uppercase sm:text-xs">{label}</p>
@@ -122,8 +122,8 @@ export function DashboardStats({
             </div>
             <p
               className={cn(
-                "mt-1 text-xl font-semibold tracking-tight text-ink sm:text-2xl dark:text-zinc-50",
-                highlight ? "text-emerald-800 dark:text-emerald-100" : null
+                "mt-1 text-xl font-semibold tracking-tight text-white sm:text-2xl",
+                highlight ? "text-amber-50" : null
               )}
             >
               {value}

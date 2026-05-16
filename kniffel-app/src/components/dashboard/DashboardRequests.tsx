@@ -79,9 +79,9 @@ export function DashboardRequests({
   }
 
   return (
-    <section className="grid gap-4 rounded-lg border border-amber-300/50 bg-amber-50/90 p-4 shadow-card dark:border-amber-300/20 dark:bg-amber-300/10">
+    <section className="grid gap-4 rounded-lg border border-brass/35 bg-brass/15 p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.22)] backdrop-blur-xl">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold tracking-tight text-amber-950 dark:text-amber-50">
+        <h2 className="text-xl font-semibold tracking-tight text-amber-50">
           Offene Anfragen
         </h2>
         <Badge variant="warning">{openCount} offen</Badge>
@@ -89,7 +89,7 @@ export function DashboardRequests({
       <div className="grid gap-3 lg:grid-cols-2">
         {requests.friendRequests.map((request) => (
           <Card
-            className="border-amber-300/50 bg-white/90 p-5 dark:border-amber-300/20 dark:bg-white/10"
+            className="!border-brass/25 !bg-black/15 p-5 text-white backdrop-blur-xl"
             key={request.id}
           >
             <div className="grid gap-4">
@@ -97,10 +97,10 @@ export function DashboardRequests({
                 <Badge className="w-fit" variant="warning">
                   Freundschaftsanfrage
                 </Badge>
-                <h3 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+                <h3 className="text-lg font-semibold tracking-tight text-white">
                   {request.username}
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-zinc-400">
+                <p className="text-sm text-emerald-50/70">
                   Moechte dich als Freund hinzufuegen.
                 </p>
               </div>
@@ -124,7 +124,7 @@ export function DashboardRequests({
 
         {requests.gameInvitations.map((invitation) => (
           <Card
-            className="border-amber-300/50 bg-white/90 p-5 dark:border-amber-300/20 dark:bg-white/10"
+            className="!border-brass/25 !bg-black/15 p-5 text-white backdrop-blur-xl"
             key={invitation.id}
           >
             <div className="grid gap-4">
@@ -132,10 +132,10 @@ export function DashboardRequests({
                 <Badge className="w-fit" variant="warning">
                   Spieleinladung
                 </Badge>
-                <h3 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+                <h3 className="text-lg font-semibold tracking-tight text-white">
                   {invitation.gameName}
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-zinc-400">
+                <p className="text-sm text-emerald-50/70">
                   Von {invitation.senderUsername} / {invitation.playerCount} Spieler
                 </p>
               </div>

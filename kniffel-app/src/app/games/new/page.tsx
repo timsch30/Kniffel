@@ -1,3 +1,4 @@
+import { DashboardBackdrop } from "@/components/dashboard/DashboardBackdrop";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Alert } from "@/components/ui/Alert";
 import { Card } from "@/components/ui/Card";
@@ -20,8 +21,14 @@ export default async function NewGamePage({ searchParams }: NewGamePageProps) {
   const { error } = await searchParams;
 
   return (
-    <PageContainer className="grid min-h-[calc(100svh-5rem)] content-center" size="sm">
-      <Card className="p-6 sm:p-7" eyebrow="Neue Runde" title="Runde erstellen">
+    <>
+      <DashboardBackdrop />
+      <PageContainer className="felt-ui grid min-h-[calc(100svh-5rem)] content-center" size="sm">
+      <Card
+        className="!border-white/10 !bg-white/[0.09] p-6 text-white shadow-[0_24px_80px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-7"
+        eyebrow="Neue Runde"
+        title="Runde erstellen"
+      >
         {error ? <Alert className="mb-4" variant="danger">{error}</Alert> : null}
         <form action={createGameAction} className="grid gap-4">
           <Input
@@ -37,6 +44,7 @@ export default async function NewGamePage({ searchParams }: NewGamePageProps) {
           <SubmitButton pendingLabel="Runde wird erstellt...">Runde erstellen</SubmitButton>
         </form>
       </Card>
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 }

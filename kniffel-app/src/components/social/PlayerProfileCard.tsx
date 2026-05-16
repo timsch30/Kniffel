@@ -14,16 +14,16 @@ type PlayerProfileCardProps = {
 
 export function PlayerProfileCard({ label = "Spielerprofil", player, stats }: PlayerProfileCardProps) {
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="bg-gradient-to-br from-white to-slate-50 px-5 py-5 dark:from-zinc-900 dark:to-zinc-950">
+    <Card className="overflow-hidden !border-white/10 !bg-white/[0.09] p-0 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+      <div className="border-b border-white/10 bg-black/15 px-5 py-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <PlayerAvatar className="h-14 w-14 rounded-3xl text-base" player={player} />
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wide text-felt dark:text-emerald-300">
+              <p className="text-xs font-bold uppercase tracking-wide text-amber-100">
                 {label}
               </p>
-              <h2 className="truncate text-2xl font-semibold tracking-tight text-ink dark:text-zinc-50">
+              <h2 className="truncate text-2xl font-semibold tracking-tight text-white">
                 {player.name}
               </h2>
             </div>
