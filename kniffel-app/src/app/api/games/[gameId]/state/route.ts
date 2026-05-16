@@ -19,7 +19,7 @@ export async function GET(_request: Request, { params }: GameStateRouteProps) {
   }
 
   const { gameId } = await params;
-  const state = await getGameState(gameId);
+  const state = await getGameState(gameId, user.id);
 
   if (!state) {
     return NextResponse.json({ error: "Runde nicht gefunden." }, { status: 404 });

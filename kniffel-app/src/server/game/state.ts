@@ -1,5 +1,5 @@
 import { scoreCategories } from "@/game/scorecard";
-import type { GameState } from "@/game/state";
+import type { GameInviteFriend, GameState } from "@/game/state";
 import { prisma } from "@/lib/prisma";
 
 function normalizeDiceValues(value: unknown): number[] {
@@ -12,7 +12,84 @@ function normalizeDiceValues(value: unknown): number[] {
     .filter((entry) => Number.isInteger(entry) && entry >= 1 && entry <= 6);
 }
 
-export async function getGameState(gameId: string): Promise<GameState | null> {
+async function getFriendInvites(gameId: string, currentUserId: string): Promise<GameInviteFriend[]> {
+  const friendships = await prisma.friendship.findMany({
+    include: {
+      friend: {
+        select: {
+          id: true,
+          username: true
+        }
+      },
+      user: {
+        select: {
+          id: true,
+          username: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: "desc"
+    },
+    where: {
+      OR: [{ userId: currentUserId }, { friendId: currentUserId }]
+    }
+  });
+  const friends = friendships.map((friendship) =>
+    friendship.userId === currentUserId ? friendship.friend : friendship.user
+  );
+
+  if (friends.length === 0) {
+    return [];
+  }
+
+  const [players, invitations] = await Promise.all([
+    prisma.gamePlayer.findMany({
+      select: {
+        userId: true
+      },
+      where: {
+        gameId,
+        userId: {
+          in: friends.map((friend) => friend.id)
+        }
+      }
+    }),
+    prisma.gameInvitation.findMany({
+      select: {
+        id: true,
+        receiverId: true,
+        status: true
+      },
+      where: {
+        gameId,
+        receiverId: {
+          in: friends.map((friend) => friend.id)
+        }
+      }
+    })
+  ]);
+  const playerUserIds = new Set(players.flatMap((player) => (player.userId ? [player.userId] : [])));
+  const invitationByReceiverId = new Map(
+    invitations.map((invitation) => [invitation.receiverId, invitation])
+  );
+
+  return friends.map((friend) => {
+    const invitation = invitationByReceiverId.get(friend.id);
+
+    return {
+      id: friend.id,
+      invitationId: invitation?.id ?? null,
+      status: playerUserIds.has(friend.id) ? "IN_GAME" : invitation?.status ?? null,
+      username: friend.username
+    };
+  });
+}
+
+export async function getGameState(
+  gameId: string,
+  currentUserId: string
+): Promise<GameState | null> {
   const game = await prisma.game.findUnique({
     include: {
       players: {
@@ -119,10 +196,15 @@ export async function getGameState(gameId: string): Promise<GameState | null> {
         displayName: lastTurn.player?.displayName ?? "Unbekannter Spieler"
       }
     : null;
+  const friendInvites =
+    game.ownerId === currentUserId && game.status !== "FINISHED"
+      ? await getFriendInvites(game.id, currentUserId)
+      : [];
 
   return {
     currentPlayerId: game.currentPlayerId,
     currentPlayerName: currentPlayer?.displayName ?? null,
+    friendInvites,
     gameId: game.id,
     inviteCode: game.inviteCode,
     lastAction,

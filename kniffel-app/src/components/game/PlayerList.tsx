@@ -11,13 +11,15 @@ type PlayerListProps = {
   currentPlayerId?: string;
 };
 
-const placeholderPlayers: Player[] = [
-  { id: "1", name: "Anna", score: 42 },
-  { id: "2", name: "Ben", score: 36 },
-  { id: "3", name: "Clara", score: 28 }
-];
+export function PlayerList({ currentPlayerId, players = [] }: PlayerListProps) {
+  if (players.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+        Keine Spieler vorhanden.
+      </div>
+    );
+  }
 
-export function PlayerList({ currentPlayerId = "1", players = placeholderPlayers }: PlayerListProps) {
   return (
     <div className="grid gap-3">
       {players.map((player) => {

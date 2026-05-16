@@ -6,6 +6,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { requireCurrentUser } from "@/server/auth/session";
 import {
   enterScoreAction,
+  inviteFriendToGameAction,
   movePlayerAction,
   restartGameAction,
   startGameAction
@@ -27,7 +28,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
   const user = await requireCurrentUser();
   const { gameId } = await params;
   const { error } = await searchParams;
-  const initialState = await getGameState(gameId);
+  const initialState = await getGameState(gameId, user.id);
 
   if (!initialState) {
     notFound();
@@ -50,6 +51,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
         enterScoreAction={boundEnterScoreAction}
         error={error}
         initialState={initialState}
+        inviteFriendToGameAction={inviteFriendToGameAction}
         inviteLink={inviteLink}
         movePlayerAction={boundMovePlayerAction}
         restartGameAction={boundRestartGameAction}

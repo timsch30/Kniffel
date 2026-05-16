@@ -26,6 +26,10 @@ function readRedirectTo(formData: FormData): string {
   return redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/dashboard";
 }
 
+function normalizeUsername(username: string): string {
+  return username.toLowerCase();
+}
+
 export async function registerAction(formData: FormData): Promise<void> {
   const validation = validateRegisterForm(formData);
 
@@ -34,18 +38,19 @@ export async function registerAction(formData: FormData): Promise<void> {
   }
 
   const { password, username } = validation.data;
+  const usernameNormalized = normalizeUsername(username);
 
   const existingUser = await prisma.user.findFirst({
     select: {
-      username: true
+      usernameNormalized: true
     },
     where: {
-      username
+      usernameNormalized
     }
   });
 
 
-  if (existingUser?.username === username) {
+  if (existingUser?.usernameNormalized === usernameNormalized) {
     redirectWithError("/register", "Dieser Username ist bereits vergeben.");
   }
 
@@ -54,7 +59,8 @@ export async function registerAction(formData: FormData): Promise<void> {
       data: {
         email: `${username}@local.invalid`,
         passwordHash: await hashPassword(password),
-        username
+        username,
+        usernameNormalized
       },
       select: {
         id: true
@@ -90,7 +96,7 @@ export async function loginAction(formData: FormData): Promise<void> {
       passwordHash: true
     },
     where: {
-      username
+      usernameNormalized: normalizeUsername(username)
     }
   });
 

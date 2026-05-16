@@ -18,36 +18,60 @@ enum TurnStatus {
   FINISHED
 }
 
+enum GameInvitationStatus {
+  PENDING
+  ACCEPTED
+}
+
 model User {
-  id                         String          @id @default(cuid())
-  username                   String          @unique
-  email                      String          @unique
-  passwordHash               String
-  createdAt                  DateTime        @default(now())
-  updatedAt                  DateTime        @updatedAt
-  ownedGames                 Game[]          @relation("GameOwner")
-  gamePlayers                GamePlayer[]
-  sentFriendRequests         FriendRequest[] @relation("SentFriendRequests")
-  receivedFriendRequests     FriendRequest[] @relation("ReceivedFriendRequests")
-  initiatedFriendships       Friendship[]    @relation("FriendshipUser")
-  acceptedFriendships        Friendship[]    @relation("FriendshipFriend")
+  id                      String           @id @default(cuid())
+  username                String           @unique
+  usernameNormalized      String           @unique
+  email                   String           @unique
+  passwordHash            String
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  ownedGames              Game[]           @relation("GameOwner")
+  gamePlayers             GamePlayer[]
+  sentGameInvitations     GameInvitation[] @relation("SentGameInvitations")
+  receivedGameInvitations GameInvitation[] @relation("ReceivedGameInvitations")
+  sentFriendRequests      FriendRequest[]  @relation("SentFriendRequests")
+  receivedFriendRequests  FriendRequest[]  @relation("ReceivedFriendRequests")
+  initiatedFriendships    Friendship[]     @relation("FriendshipUser")
+  acceptedFriendships     Friendship[]     @relation("FriendshipFriend")
 }
 
 model Game {
-  id              String       @id @default(cuid())
+  id              String           @id @default(cuid())
   ownerId         String
   name            String
-  inviteCode      String       @unique
-  status          GameStatus   @default(LOBBY)
+  inviteCode      String           @unique
+  status          GameStatus       @default(LOBBY)
   currentPlayerId String?
-  roundNumber     Int          @default(1)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  owner           User         @relation("GameOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  currentPlayer   GamePlayer?  @relation("CurrentGamePlayer", fields: [currentPlayerId], references: [id], onDelete: SetNull)
-  players         GamePlayer[] @relation("GamePlayers")
+  roundNumber     Int              @default(1)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  owner           User             @relation("GameOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  currentPlayer   GamePlayer?      @relation("CurrentGamePlayer", fields: [currentPlayerId], references: [id], onDelete: SetNull)
+  players         GamePlayer[]     @relation("GamePlayers")
+  invitations     GameInvitation[]
   scoreCards      ScoreCard[]
   turns           Turn[]
+}
+
+model GameInvitation {
+  id         String               @id @default(cuid())
+  gameId     String
+  senderId   String
+  receiverId String
+  status     GameInvitationStatus @default(PENDING)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  game       Game                 @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  sender     User                 @relation("SentGameInvitations", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User                 @relation("ReceivedGameInvitations", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, receiverId])
 }
 
 model GamePlayer {
@@ -67,28 +91,28 @@ model GamePlayer {
 }
 
 model ScoreCard {
-  id              String     @id @default(cuid())
-  gameId          String
-  playerId        String
-  ones            Int?
-  twos            Int?
-  threes          Int?
-  fours           Int?
-  fives           Int?
-  sixes           Int?
-  threeOfAKind    Int?
-  fourOfAKind     Int?
-  fullHouse       Int?
-  smallStraight   Int?
-  largeStraight   Int?
-  kniffel         Int?
-  chance          Int?
-  upperBonus      Int?
-  total           Int?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  game            Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  player          GamePlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  id            String     @id @default(cuid())
+  gameId        String
+  playerId      String
+  ones          Int?
+  twos          Int?
+  threes        Int?
+  fours         Int?
+  fives         Int?
+  sixes         Int?
+  threeOfAKind  Int?
+  fourOfAKind   Int?
+  fullHouse     Int?
+  smallStraight Int?
+  largeStraight Int?
+  kniffel       Int?
+  chance        Int?
+  upperBonus    Int?
+  total         Int?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  game          Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player        GamePlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([gameId, playerId])
 }

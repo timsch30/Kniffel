@@ -15,6 +15,7 @@ type GameViewProps = {
   enterScoreAction: (formData: FormData) => void | Promise<void>;
   error?: string;
   initialState: GameState;
+  inviteFriendToGameAction: (formData: FormData) => void | Promise<void>;
   inviteLink: string;
   movePlayerAction: (playerId: string, direction: "up" | "down") => void | Promise<void>;
   restartGameAction: () => void | Promise<void>;
@@ -26,6 +27,7 @@ export function GameView({
   enterScoreAction,
   error,
   initialState,
+  inviteFriendToGameAction,
   inviteLink,
   movePlayerAction,
   restartGameAction,
@@ -126,6 +128,7 @@ export function GameView({
         <GameLobby
           currentUserId={currentUserId}
           inviteLink={inviteLink}
+          inviteFriendToGameAction={inviteFriendToGameAction}
           movePlayerAction={movePlayerAction}
           onOpenTurn={() => setTurnModeOpen(true)}
           restartGameAction={restartGameAction}

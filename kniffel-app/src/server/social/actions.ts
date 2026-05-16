@@ -13,6 +13,10 @@ function readString(formData: FormData, name: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeUsername(username: string): string {
+  return username.toLowerCase();
+}
+
 function redirectWithError(error: string): never {
   redirect(`/social?error=${encodeURIComponent(error)}`);
 }
@@ -40,7 +44,7 @@ export async function sendFriendRequestAction(formData: FormData): Promise<void>
       id: true
     },
     where: {
-      username
+      usernameNormalized: normalizeUsername(username)
     }
   });
 

@@ -26,7 +26,6 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import type { SocialState } from "@/server/social/state";
-import { currentPlayer, mockFriends, mockGames } from "@/social/mock-data";
 import {
   calculateAchievements,
   calculateHeadToHeadStats,
@@ -35,7 +34,7 @@ import {
   calculateRivalStats,
   getRecentGames
 } from "@/social/stats";
-import type { Friend, Player, PlayerId } from "@/social/types";
+import type { Friend, Game, Player, PlayerId } from "@/social/types";
 
 type SocialDashboardProps = {
   acceptFriendRequestAction: (requestId: string) => void | Promise<void>;
@@ -49,6 +48,15 @@ type SocialDashboardProps = {
 };
 
 type TabId = "overview" | "friends" | "ranking" | "profile";
+
+const games: Game[] = [];
+
+const currentPlayer: Player = {
+  color: "bg-ink text-white dark:bg-white dark:text-zinc-950",
+  id: "you",
+  initials: "DU",
+  name: "Du"
+};
 
 const tabs: { icon: typeof BarChart3; id: TabId; label: string }[] = [
   { icon: BarChart3, id: "overview", label: "Uebersicht" },
@@ -68,7 +76,7 @@ const fallbackFriend: Friend = {
 };
 
 function getFriendStats(friend: Friend) {
-  return calculatePlayerStats(mockGames, friend.id);
+  return calculatePlayerStats(games, friend.id);
 }
 
 export function SocialDashboard({
@@ -83,7 +91,7 @@ export function SocialDashboard({
 }: SocialDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [selectedFriendId, setSelectedFriendId] = useState<PlayerId>(
-    socialState.friends[0]?.id ?? mockFriends[0]?.id ?? ""
+    socialState.friends[0]?.id ?? ""
   );
 
   const user = useMemo<Player>(
@@ -95,25 +103,24 @@ export function SocialDashboard({
     [userId, userName]
   );
   const friends = socialState.friends;
-  const statsFriends = friends.length > 0 ? friends : mockFriends;
-  const players = useMemo<Player[]>(() => [user, ...statsFriends], [statsFriends, user]);
+  const players = useMemo<Player[]>(() => [user, ...friends], [friends, user]);
   const selectedFriend =
-    statsFriends.find((friend) => friend.id === selectedFriendId) ??
-    statsFriends[0] ??
+    friends.find((friend) => friend.id === selectedFriendId) ??
+    friends[0] ??
     fallbackFriend;
-  const userStats = useMemo(() => calculatePlayerStats(mockGames, user.id), [user.id]);
+  const userStats = useMemo(() => calculatePlayerStats(games, user.id), [user.id]);
   const selectedFriendStats = useMemo(
-    () => calculatePlayerStats(mockGames, selectedFriend.id),
+    () => calculatePlayerStats(games, selectedFriend.id),
     [selectedFriend.id]
   );
   const headToHead = useMemo(
-    () => calculateHeadToHeadStats(mockGames, user, selectedFriend),
+    () => calculateHeadToHeadStats(games, user, selectedFriend),
     [selectedFriend, user]
   );
-  const leaderboard = useMemo(() => calculateLeaderboard(players, mockGames), [players]);
+  const leaderboard = useMemo(() => calculateLeaderboard(players, games), [players]);
   const achievements = useMemo(() => calculateAchievements(userStats), [userStats]);
-  const recentGames = useMemo(() => getRecentGames(mockGames, 5), []);
-  const rivals = useMemo(() => calculateRivalStats(mockGames, user, mockFriends), [user]);
+  const recentGames = useMemo(() => getRecentGames(games, 5), []);
+  const rivals = useMemo(() => calculateRivalStats(games, user, friends), [friends, user]);
 
   return (
     <div className="grid gap-5">
@@ -130,8 +137,7 @@ export function SocialDashboard({
                 Freunde, Rivalen, Fortschritt.
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-zinc-400">
-                Ein kompakter Social-Hub fuer deine Kniffel-Runden. Aktuell mit Mock-Daten,
-                backendfaehig strukturiert.
+                Freunde verwalten und echte Runden im Blick behalten.
               </p>
             </div>
           </div>
@@ -281,7 +287,12 @@ export function SocialDashboard({
                 Freundesvergleich
               </h2>
               <div className="mt-4 grid gap-2">
-                {mockFriends.map((friend) => {
+                {friends.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                    Noch keine Freunde.
+                  </div>
+                ) : null}
+                {friends.map((friend) => {
                   const stats = getFriendStats(friend);
 
                   return (

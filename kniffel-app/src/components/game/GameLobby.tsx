@@ -15,6 +15,7 @@ import {
   Play,
   RotateCw,
   Trophy,
+  UserPlus,
   UsersRound
 } from "lucide-react";
 import Link from "next/link";
@@ -41,6 +42,7 @@ import { cn } from "@/lib/cn";
 
 type GameLobbyProps = {
   currentUserId: string;
+  inviteFriendToGameAction: (formData: FormData) => void | Promise<void>;
   inviteLink: string;
   movePlayerAction: (playerId: string, direction: "up" | "down") => void | Promise<void>;
   onOpenTurn: () => void;
@@ -132,6 +134,7 @@ function MenuCard({
 
 export function GameLobby({
   currentUserId,
+  inviteFriendToGameAction,
   inviteLink,
   movePlayerAction,
   onOpenTurn,
@@ -531,12 +534,72 @@ export function GameLobby({
           ) : null}
 
           {view === "invite" ? (
-            <div className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-4 dark:border-white/10 dark:bg-white/5">
-              <p className="break-all font-mono text-2xl font-semibold tracking-tight text-ink dark:text-zinc-50">
-                {state.inviteCode}
-              </p>
-              <p className="break-all text-sm text-slate-500 dark:text-zinc-400">{inviteLink}</p>
-              <CopyInviteLinkButton inviteLink={inviteLink} />
+            <div className="grid gap-4">
+              <div className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-4 dark:border-white/10 dark:bg-white/5">
+                <p className="break-all font-mono text-2xl font-semibold tracking-tight text-ink dark:text-zinc-50">
+                  {state.inviteCode}
+                </p>
+                <p className="break-all text-sm text-slate-500 dark:text-zinc-400">{inviteLink}</p>
+                <CopyInviteLinkButton inviteLink={inviteLink} />
+              </div>
+
+              {isOwner && state.status !== "FINISHED" ? (
+                <div className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-4 dark:border-white/10 dark:bg-white/5">
+                  <div>
+                    <h3 className="font-semibold text-ink dark:text-zinc-50">
+                      Freunde einladen
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">
+                      Nur bestehende Freunde koennen eingeladen werden.
+                    </p>
+                  </div>
+
+                  {state.friendInvites.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                      Keine Freunde vorhanden.
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      {state.friendInvites.map((friend) => {
+                        const alreadyInvited = friend.status === "PENDING";
+                        const accepted = friend.status === "ACCEPTED" || friend.status === "IN_GAME";
+                        const disabled = alreadyInvited || accepted;
+
+                        return (
+                          <div
+                            className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white/85 px-3 py-2 dark:border-white/10 dark:bg-white/5"
+                            key={friend.id}
+                          >
+                            <span className="min-w-0 truncate text-sm font-semibold text-ink dark:text-zinc-50">
+                              {friend.username}
+                            </span>
+                            {accepted ? (
+                              <Badge variant="success">
+                                {friend.status === "IN_GAME" ? "In Runde" : "Angenommen"}
+                              </Badge>
+                            ) : alreadyInvited ? (
+                              <Badge variant="warning">Offen</Badge>
+                            ) : (
+                              <form action={inviteFriendToGameAction}>
+                                <input name="gameId" type="hidden" value={state.gameId} />
+                                <input name="friendId" type="hidden" value={friend.id} />
+                                <SubmitButton
+                                  className="min-h-9 px-3 py-2 text-xs"
+                                  disabled={disabled}
+                                  pendingLabel="Sendet..."
+                                >
+                                  <UserPlus aria-hidden="true" className="h-4 w-4" />
+                                  Einladen
+                                </SubmitButton>
+                              </form>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
           ) : null}
 

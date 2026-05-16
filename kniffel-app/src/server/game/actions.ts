@@ -1,6 +1,7 @@
 "use server";
 
 import { Prisma } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import {
@@ -31,6 +32,57 @@ function redirectWithError(path: string, error: string): never {
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function orderedFriendshipPair(firstUserId: string, secondUserId: string) {
+  return firstUserId < secondUserId
+    ? { friendId: secondUserId, userId: firstUserId }
+    : { friendId: firstUserId, userId: secondUserId };
+}
+
+async function addUserToGame(
+  tx: Prisma.TransactionClient,
+  gameId: string,
+  user: { id: string; username: string }
+) {
+  const players = await tx.gamePlayer.findMany({
+    orderBy: {
+      position: "asc"
+    },
+    select: {
+      position: true,
+      userId: true
+    },
+    where: {
+      gameId
+    }
+  });
+
+  if (players.some((player) => player.userId === user.id)) {
+    return;
+  }
+
+  const nextPosition =
+    players.reduce((highestPosition, player) => Math.max(highestPosition, player.position), 0) + 1;
+
+  const gamePlayer = await tx.gamePlayer.create({
+    data: {
+      displayName: user.username,
+      gameId,
+      position: nextPosition,
+      userId: user.id
+    },
+    select: {
+      id: true
+    }
+  });
+
+  await tx.scoreCard.create({
+    data: {
+      gameId,
+      playerId: gamePlayer.id
+    }
+  });
 }
 
 export async function createGameAction(formData: FormData): Promise<void> {
@@ -137,47 +189,7 @@ export async function joinGameAction(inviteCode: string): Promise<void> {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const players = await tx.gamePlayer.findMany({
-        orderBy: {
-          position: "asc"
-        },
-        select: {
-          position: true,
-          userId: true
-        },
-        where: {
-          gameId: game.id
-        }
-      });
-
-      if (players.some((player) => player.userId === user.id)) {
-        return;
-      }
-
-      const nextPosition =
-        players.reduce(
-          (highestPosition, player) => Math.max(highestPosition, player.position),
-          0
-        ) + 1;
-
-      const gamePlayer = await tx.gamePlayer.create({
-        data: {
-          displayName: user.username,
-          gameId: game.id,
-          position: nextPosition,
-          userId: user.id
-        },
-        select: {
-          id: true
-        }
-      });
-
-      await tx.scoreCard.create({
-        data: {
-          gameId: game.id,
-          playerId: gamePlayer.id
-        }
-      });
+      await addUserToGame(tx, game.id, user);
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
@@ -198,6 +210,141 @@ export async function joinByCodeAction(formData: FormData): Promise<void> {
   }
 
   redirect(`/join/${encodeURIComponent(inviteCode)}`);
+}
+
+export async function inviteFriendToGameAction(formData: FormData): Promise<void> {
+  const user = await requireCurrentUser();
+  const gameId = readString(formData, "gameId");
+  const friendId = readString(formData, "friendId");
+  const errorPath = `/games/${gameId}`;
+
+  if (!gameId || !friendId) {
+    redirectWithError(errorPath, "Einladung ist unvollstaendig.");
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            select: {
+              userId: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.ownerId !== user.id) {
+        throw new Error("Nur der Owner kann Freunde einladen.");
+      }
+
+      if (game.status === "FINISHED") {
+        throw new Error("Diese Runde ist bereits beendet.");
+      }
+
+      if (game.players.some((player) => player.userId === friendId)) {
+        throw new Error("Dieser Freund ist bereits in der Runde.");
+      }
+
+      const friendship = await tx.friendship.findUnique({
+        where: {
+          userId_friendId: orderedFriendshipPair(user.id, friendId)
+        }
+      });
+
+      if (!friendship) {
+        throw new Error("Du kannst nur bestehende Freunde einladen.");
+      }
+
+      await tx.gameInvitation.create({
+        data: {
+          gameId,
+          receiverId: friendId,
+          senderId: user.id
+        }
+      });
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      redirectWithError(errorPath, "Dieser Freund wurde bereits eingeladen.");
+    }
+
+    const message = error instanceof Error ? error.message : "Einladung konnte nicht gesendet werden.";
+
+    redirectWithError(errorPath, message);
+  }
+
+  revalidatePath(errorPath);
+  redirect(errorPath);
+}
+
+export async function acceptGameInvitationAction(invitationId: string): Promise<void> {
+  const user = await requireCurrentUser();
+  let gameId: string | null = null;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const invitation = await tx.gameInvitation.findUnique({
+        include: {
+          game: {
+            select: {
+              id: true,
+              status: true
+            }
+          }
+        },
+        where: {
+          id: invitationId
+        }
+      });
+
+      if (!invitation || invitation.receiverId !== user.id) {
+        throw new Error("Einladung wurde nicht gefunden.");
+      }
+
+      if (invitation.game.status === "FINISHED") {
+        throw new Error("Diese Runde ist bereits beendet.");
+      }
+
+      gameId = invitation.game.id;
+      await addUserToGame(tx, invitation.game.id, user);
+      await tx.gameInvitation.update({
+        data: {
+          status: "ACCEPTED"
+        },
+        where: {
+          id: invitation.id
+        }
+      });
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Einladung konnte nicht angenommen werden.";
+
+    redirectWithError("/dashboard", message);
+  }
+
+  redirect(gameId ? `/games/${gameId}` : "/dashboard");
+}
+
+export async function declineGameInvitationAction(invitationId: string): Promise<void> {
+  const user = await requireCurrentUser();
+
+  await prisma.gameInvitation.deleteMany({
+    where: {
+      id: invitationId,
+      receiverId: user.id,
+      status: "PENDING"
+    }
+  });
+
+  revalidatePath("/dashboard");
 }
 
 function readDiceValues(formData: FormData): number[] {

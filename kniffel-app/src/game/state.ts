@@ -35,9 +35,17 @@ export type GameStateLastAction = {
   displayName: string;
 } | null;
 
+export type GameInviteFriend = {
+  id: string;
+  invitationId: string | null;
+  status: "ACCEPTED" | "IN_GAME" | "PENDING" | null;
+  username: string;
+};
+
 export type GameState = {
   currentPlayerId: string | null;
   currentPlayerName: string | null;
+  friendInvites: GameInviteFriend[];
   gameId: string;
   inviteCode: string;
   lastAction: GameStateLastAction;

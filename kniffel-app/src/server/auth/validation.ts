@@ -28,7 +28,7 @@ function readString(formData: FormData, name: string): string {
 }
 
 export function validateRegisterForm(formData: FormData): ValidationResult<RegisterInput> {
-  const username = readString(formData, "username").toLowerCase();
+  const username = readString(formData, "username");
   const password = readString(formData, "password");
   const passwordRepeat = readString(formData, "passwordRepeat");
 
@@ -52,7 +52,7 @@ export function validateRegisterForm(formData: FormData): ValidationResult<Regis
 }
 
 export function validateLoginForm(formData: FormData): ValidationResult<LoginInput> {
-  const username = readString(formData, "username").toLowerCase();
+  const username = readString(formData, "username");
   const password = readString(formData, "password");
 
   if (!username) {

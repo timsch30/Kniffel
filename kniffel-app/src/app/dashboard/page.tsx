@@ -1,14 +1,17 @@
 import Link from "next/link";
 
-import { DoorOpen, Plus, Search, Trophy, UserRoundPlus, UsersRound } from "lucide-react";
+import { Check, DoorOpen, Plus, Search, Trophy, UserRoundPlus, UsersRound, X } from "lucide-react";
 
 import { PageContainer } from "@/components/layout/PageContainer";
+import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
-import { buttonVariants } from "@/components/ui/Button";
+import { Button, buttonVariants } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/server/auth/session";
+import { acceptGameInvitationAction, declineGameInvitationAction } from "@/server/game/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +45,17 @@ function formatDate(date: Date): string {
   }).format(date);
 }
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams: Promise<{
+    error?: string;
+  }>;
+};
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const user = await requireCurrentUser();
-  const gamePlayers = await prisma.gamePlayer.findMany({
+  const { error } = await searchParams;
+  const [gamePlayers, gameInvitations] = await Promise.all([
+    prisma.gamePlayer.findMany({
     include: {
       game: {
         include: {
@@ -62,7 +73,33 @@ export default async function DashboardPage() {
     where: {
       userId: user.id
     }
-  });
+    }),
+    prisma.gameInvitation.findMany({
+      include: {
+        game: {
+          include: {
+            _count: {
+              select: {
+                players: true
+              }
+            }
+          }
+        },
+        sender: {
+          select: {
+            username: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      where: {
+        receiverId: user.id,
+        status: "PENDING"
+      }
+    })
+  ]);
   const activeGames = gamePlayers.filter(({ game }) => game.status === "ACTIVE").length;
   const lobbyGames = gamePlayers.filter(({ game }) => game.status === "LOBBY").length;
   const playerCount = gamePlayers.reduce((sum, { game }) => sum + game._count.players, 0);
@@ -74,6 +111,8 @@ export default async function DashboardPage() {
 
   return (
     <PageContainer className="grid gap-8" size="xl">
+      {error ? <Alert variant="danger">{error}</Alert> : null}
+
       <section className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="grid gap-2">
           <Badge className="w-fit" variant="accent">
@@ -103,6 +142,52 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </section>
+
+      {gameInvitations.length > 0 ? (
+        <section className="grid gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold tracking-tight text-ink dark:text-zinc-50">
+              Rundeneinladungen
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-zinc-400">
+              {gameInvitations.length} offen
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {gameInvitations.map((invitation) => (
+              <Card className="p-5" key={invitation.id}>
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Badge className="w-fit" variant="warning">
+                      Offen
+                    </Badge>
+                    <h3 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+                      {invitation.game.name}
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-zinc-400">
+                      Von {invitation.sender.username} / {invitation.game._count.players} Spieler
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <form action={acceptGameInvitationAction.bind(null, invitation.id)}>
+                      <SubmitButton pendingLabel="Tritt bei...">
+                        <Check aria-hidden="true" className="h-4 w-4" />
+                        Annehmen
+                      </SubmitButton>
+                    </form>
+                    <form action={declineGameInvitationAction.bind(null, invitation.id)}>
+                      <Button type="submit" variant="ghost">
+                        <X aria-hidden="true" className="h-4 w-4" />
+                        Ablehnen
+                      </Button>
+                    </form>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-3 sm:grid-cols-3">
         {stats.map(({ icon: Icon, label, value }) => (
