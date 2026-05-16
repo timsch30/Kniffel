@@ -85,9 +85,14 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
     };
   }, [scanOpen]);
 
-  const detectDiceValue = useCallback((imageData: ImageData): number | null => {
+  const detectDiceValuesFromFrame = useCallback((imageData: ImageData): number[] | null => {
     const { data, width, height } = imageData;
     const brightness = new Uint8Array(width * height);
+    const binary = new Uint8Array(width * height);
+    const visited = new Uint8Array(width * height);
+    const queueX = new Int32Array(width * height);
+    const queueY = new Int32Array(width * height);
+    const pipCenters: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < width * height; i += 1) {
       const offset = i * 4;
       brightness[i] = Math.round((data[offset] + data[offset + 1] + data[offset + 2]) / 3);
@@ -97,22 +102,23 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
       total += value;
     }
     const mean = total / brightness.length;
-    const threshold = Math.max(42, Math.round(mean - 36));
-    const visited = new Uint8Array(width * height);
-    const queueX = new Int32Array(width * height);
-    const queueY = new Int32Array(width * height);
-    let pips = 0;
+    const threshold = Math.max(36, Math.round(mean - 28));
+    for (let i = 0; i < brightness.length; i += 1) {
+      binary[i] = brightness[i] <= threshold ? 1 : 0;
+    }
 
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const idx = y * width + x;
-        if (visited[idx] || brightness[idx] > threshold) {
+        if (visited[idx] || binary[idx] === 0) {
           continue;
         }
 
         let head = 0;
         let tail = 0;
         let area = 0;
+        let sumX = 0;
+        let sumY = 0;
         queueX[tail] = x;
         queueY[tail] = y;
         tail += 1;
@@ -123,6 +129,8 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
           const cy = queueY[head];
           head += 1;
           area += 1;
+          sumX += cx;
+          sumY += cy;
           const neighbors = [
             [cx - 1, cy],
             [cx + 1, cy],
@@ -134,7 +142,7 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
               continue;
             }
             const nidx = ny * width + nx;
-            if (visited[nidx] || brightness[nidx] > threshold) {
+            if (visited[nidx] || binary[nidx] === 0) {
               continue;
             }
             visited[nidx] = 1;
@@ -157,136 +165,78 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
         const componentWidth = maxX - minX + 1;
         const componentHeight = maxY - minY + 1;
         const aspectRatio = componentWidth / componentHeight;
-        const minArea = Math.round((width * height) / 1800);
-        const maxArea = Math.round((width * height) / 18);
+        const minArea = Math.round((width * height) / 3000);
+        const maxArea = Math.round((width * height) / 120);
 
         if (
           area >= minArea &&
           area <= maxArea &&
-          aspectRatio > 0.35 &&
-          aspectRatio < 2.4
+          aspectRatio > 0.5 &&
+          aspectRatio < 1.8
         ) {
-          pips += 1;
+          pipCenters.push({ x: sumX / area, y: sumY / area });
         }
       }
     }
 
-    if (pips >= 1 && pips <= 6) {
-      return pips;
-    }
-    return null;
-  }, []);
-
-  const detectDiceValuesFromFrame = useCallback((imageData: ImageData): number[] | null => {
-    const { data, width, height } = imageData;
-    const brightness = new Uint8Array(width * height);
-    let sum = 0;
-    for (let i = 0; i < width * height; i += 1) {
-      const offset = i * 4;
-      const value = Math.round((data[offset] + data[offset + 1] + data[offset + 2]) / 3);
-      brightness[i] = value;
-      sum += value;
-    }
-
-    const mean = sum / brightness.length;
-    const diceThreshold = Math.min(235, Math.max(140, Math.round(mean + 24)));
-    const visited = new Uint8Array(width * height);
-    const queueX = new Int32Array(width * height);
-    const queueY = new Int32Array(width * height);
-    const candidates: Array<{ minX: number; maxX: number; minY: number; maxY: number; area: number }> = [];
-
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const idx = y * width + x;
-        if (visited[idx] || brightness[idx] < diceThreshold) {
-          continue;
-        }
-        let head = 0;
-        let tail = 0;
-        let area = 0;
-        let minX = x;
-        let maxX = x;
-        let minY = y;
-        let maxY = y;
-        visited[idx] = 1;
-        queueX[tail] = x;
-        queueY[tail] = y;
-        tail += 1;
-
-        while (head < tail) {
-          const cx = queueX[head];
-          const cy = queueY[head];
-          head += 1;
-          area += 1;
-          minX = Math.min(minX, cx);
-          maxX = Math.max(maxX, cx);
-          minY = Math.min(minY, cy);
-          maxY = Math.max(maxY, cy);
-
-          const neighbors = [
-            [cx - 1, cy],
-            [cx + 1, cy],
-            [cx, cy - 1],
-            [cx, cy + 1]
-          ];
-          for (const [nx, ny] of neighbors) {
-            if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
-              continue;
-            }
-            const nidx = ny * width + nx;
-            if (visited[nidx] || brightness[nidx] < diceThreshold) {
-              continue;
-            }
-            visited[nidx] = 1;
-            queueX[tail] = nx;
-            queueY[tail] = ny;
-            tail += 1;
-          }
-        }
-
-        const boxWidth = maxX - minX + 1;
-        const boxHeight = maxY - minY + 1;
-        const aspectRatio = boxWidth / boxHeight;
-        const minArea = Math.round((width * height) / 220);
-        const maxArea = Math.round((width * height) / 7);
-        if (area >= minArea && area <= maxArea && aspectRatio > 0.55 && aspectRatio < 1.8) {
-          candidates.push({ minX, maxX, minY, maxY, area });
-        }
-      }
-    }
-
-    const diceRegions = candidates.sort((a, b) => b.area - a.area).slice(0, maxDiceCount);
-    if (diceRegions.length !== maxDiceCount) {
+    if (pipCenters.length < maxDiceCount || pipCenters.length > 30) {
       return null;
     }
 
-    const detectedValues: number[] = [];
-    for (const region of diceRegions) {
-      const padding = 6;
-      const rx = Math.max(0, region.minX - padding);
-      const ry = Math.max(0, region.minY - padding);
-      const rw = Math.min(width - rx, region.maxX - region.minX + 1 + padding * 2);
-      const rh = Math.min(height - ry, region.maxY - region.minY + 1 + padding * 2);
-      const regionData = new ImageData(rw, rh);
-      for (let yy = 0; yy < rh; yy += 1) {
-        for (let xx = 0; xx < rw; xx += 1) {
-          const src = ((ry + yy) * width + (rx + xx)) * 4;
-          const dst = (yy * rw + xx) * 4;
-          regionData.data[dst] = data[src];
-          regionData.data[dst + 1] = data[src + 1];
-          regionData.data[dst + 2] = data[src + 2];
-          regionData.data[dst + 3] = data[src + 3];
+    let centroids = pipCenters.slice(0, maxDiceCount).map((center) => ({ ...center }));
+    for (let iteration = 0; iteration < 8; iteration += 1) {
+      const groups = Array.from({ length: maxDiceCount }, () => [] as Array<{ x: number; y: number }>);
+      for (const center of pipCenters) {
+        let bestIdx = 0;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < centroids.length; i += 1) {
+          const dx = center.x - centroids[i].x;
+          const dy = center.y - centroids[i].y;
+          const dist = dx * dx + dy * dy;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+          }
         }
+        groups[bestIdx].push(center);
       }
-      const value = detectDiceValue(regionData);
-      if (!value) {
-        return null;
-      }
-      detectedValues.push(value);
+
+      centroids = centroids.map((centroid, index) => {
+        const group = groups[index];
+        if (group.length === 0) {
+          return centroid;
+        }
+        let sumX = 0;
+        let sumY = 0;
+        for (const point of group) {
+          sumX += point.x;
+          sumY += point.y;
+        }
+        return { x: sumX / group.length, y: sumY / group.length };
+      });
     }
 
-    return detectedValues;
-  }, [detectDiceValue]);
+    const clusters = Array.from({ length: maxDiceCount }, () => 0);
+    for (const center of pipCenters) {
+      let bestIdx = 0;
+      let bestDist = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < centroids.length; i += 1) {
+        const dx = center.x - centroids[i].x;
+        const dy = center.y - centroids[i].y;
+        const dist = dx * dx + dy * dy;
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+      clusters[bestIdx] += 1;
+    }
+
+    if (clusters.some((count) => count < 1 || count > 6)) {
+      return null;
+    }
+    return clusters;
+  }, []);
 
   const scanCurrentFrame = useCallback((): number[] | null => {
     const video = videoRef.current;
