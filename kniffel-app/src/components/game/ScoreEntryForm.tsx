@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Calculator, CheckCircle2, PencilLine, Save, Sparkles } from "lucide-react";
 
+import { Dice } from "@/components/game/Dice";
 import { DiceInput } from "@/components/game/DiceInput";
 import { ScoreSuggestions } from "@/components/game/ScoreSuggestions";
 import { SubmitButton } from "@/components/ui/SubmitButton";
@@ -14,6 +15,7 @@ import type { ScoreCard, ScoreCategory } from "@/game/types";
 type ScoreEntryFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   initialDiceValues?: number[];
+  onlineRollMode?: boolean;
   onSaved?: () => void;
   scoreCard: ScoreCard;
 };
@@ -27,6 +29,7 @@ function isCategoryUsed(scoreCard: ScoreCard, category: ScoreCategory): boolean 
 export function ScoreEntryForm({
   action,
   initialDiceValues = [],
+  onlineRollMode = false,
   onSaved,
   scoreCard
 }: ScoreEntryFormProps) {
@@ -36,10 +39,34 @@ export function ScoreEntryForm({
   const [selectedCategory, setSelectedCategory] = useState<ScoreCategory | null>(null);
   const suggestionsSectionRef = useRef<HTMLElement | null>(null);
   const previousDiceCountRef = useRef(0);
+  const [heldDice, setHeldDice] = useState<boolean[]>([false, false, false, false, false]);
+  const [rollCount, setRollCount] = useState(initialDiceValues.length === 5 ? 1 : 0);
 
   useEffect(() => {
     setDiceValues(initialDiceValues);
+    setHeldDice([false, false, false, false, false]);
+    setRollCount(initialDiceValues.length === 5 ? 1 : 0);
   }, [initialDiceValues]);
+
+  function rollDice() {
+    if (rollCount >= 3) {
+      return;
+    }
+
+    setDiceValues((previous) => {
+      const values = previous.length === 5 ? previous : [1, 1, 1, 1, 1];
+      return values.map((value, index) => (heldDice[index] ? value : Math.floor(Math.random() * 6) + 1));
+    });
+    setRollCount((previous) => previous + 1);
+  }
+
+  function toggleHeld(index: number) {
+    if (rollCount === 0) {
+      return;
+    }
+
+    setHeldDice((previous) => previous.map((held, position) => (position === index ? !held : held)));
+  }
 
   function handleModeChange(nextMode: EntryMode) {
     setMode(nextMode);
@@ -103,6 +130,7 @@ export function ScoreEntryForm({
                   ? "bg-white text-ink shadow-sm dark:bg-zinc-900 dark:text-zinc-50"
                   : "text-slate-500 hover:text-ink dark:text-zinc-400 dark:hover:text-zinc-50"
               ].join(" ")}
+              disabled={onlineRollMode && entryMode.id === "dice"}
               key={entryMode.id}
               onClick={() => handleModeChange(entryMode.id)}
               type="button"
@@ -116,7 +144,37 @@ export function ScoreEntryForm({
 
       {mode === "dice" ? (
         <section className="grid gap-5" ref={suggestionsSectionRef}>
-          <DiceInput onChange={setDiceValues} values={diceValues} />
+          {onlineRollMode ? (
+            <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+              <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">Wurf {rollCount}/3</p>
+              <div className="grid grid-cols-5 gap-2">
+                {(diceValues.length === 5 ? diceValues : [1, 1, 1, 1, 1]).map((value, index) => (
+                  <button
+                    className={[
+                      "rounded-xl border p-1",
+                      heldDice[index] ? "border-amber-300" : "border-transparent"
+                    ].join(" ")}
+                    key={`${value}-${index}`}
+                    onClick={() => toggleHeld(index)}
+                    type="button"
+                  >
+                    <span className="sr-only">Wuerfel halten</span>
+                    <Dice held={heldDice[index]} value={value} />
+                  </button>
+                ))}
+              </div>
+              <button
+                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                disabled={rollCount >= 3}
+                onClick={rollDice}
+                type="button"
+              >
+                Wuerfeln
+              </button>
+            </div>
+          ) : (
+            <DiceInput onChange={setDiceValues} values={diceValues} />
+          )}
           <ScoreSuggestions
             diceValues={diceValues}
             onSelect={setSelectedCategory}
