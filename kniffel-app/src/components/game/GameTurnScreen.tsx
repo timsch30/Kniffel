@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, FilePenLine, X } from "lucide-react";
@@ -30,6 +30,8 @@ export function GameTurnScreen({
   state
 }: GameTurnScreenProps) {
   const [entryOpen, setEntryOpen] = useState(false);
+  const playerCardRefs = useRef<Record<string, HTMLElement | null>>({});
+  const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
   const currentUserScoreCard = currentUserPlayer
@@ -38,6 +40,21 @@ export function GameTurnScreen({
   const userTurn = isUserTurn(state, currentUserId);
   const filledCount = getFilledCategoryCount(currentUserScoreCard);
   const total = currentUserScoreCard?.total ?? 0;
+
+  useEffect(() => {
+    if (previousCurrentPlayerIdRef.current === state.currentPlayerId) {
+      return;
+    }
+
+    previousCurrentPlayerIdRef.current = state.currentPlayerId;
+    const activeCard = playerCardRefs.current[state.currentPlayerId];
+
+    activeCard?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "start"
+    });
+  }, [state.currentPlayerId]);
 
   return (
     <section className="relative -mx-4 min-h-[100svh] bg-slate-50 px-4 pb-32 pt-3 sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-slate-200/80 sm:bg-white/70 sm:p-5 sm:pb-32 sm:shadow-card sm:backdrop-blur-xl dark:bg-zinc-950 dark:sm:border-white/10 dark:sm:bg-zinc-900/70 dark:sm:shadow-card-dark">
@@ -83,6 +100,9 @@ export function GameTurnScreen({
                       : "border-slate-200 dark:border-white/10"
                   )}
                   key={player.id}
+                  ref={(element) => {
+                    playerCardRefs.current[player.id] = element;
+                  }}
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
