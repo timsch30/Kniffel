@@ -85,7 +85,7 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
     };
   }, [scanOpen]);
 
-  function detectDiceValue(imageData: ImageData): number | null {
+  const detectDiceValue = useCallback((imageData: ImageData): number | null => {
     const { data, width, height } = imageData;
     const brightness = new Uint8Array(width * height);
     for (let i = 0; i < width * height; i += 1) {
@@ -175,7 +175,118 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
       return pips;
     }
     return null;
-  }
+  }, []);
+
+  const detectDiceValuesFromFrame = useCallback((imageData: ImageData): number[] | null => {
+    const { data, width, height } = imageData;
+    const brightness = new Uint8Array(width * height);
+    let sum = 0;
+    for (let i = 0; i < width * height; i += 1) {
+      const offset = i * 4;
+      const value = Math.round((data[offset] + data[offset + 1] + data[offset + 2]) / 3);
+      brightness[i] = value;
+      sum += value;
+    }
+
+    const mean = sum / brightness.length;
+    const diceThreshold = Math.min(235, Math.max(140, Math.round(mean + 24)));
+    const visited = new Uint8Array(width * height);
+    const queueX = new Int32Array(width * height);
+    const queueY = new Int32Array(width * height);
+    const candidates: Array<{ minX: number; maxX: number; minY: number; maxY: number; area: number }> = [];
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const idx = y * width + x;
+        if (visited[idx] || brightness[idx] < diceThreshold) {
+          continue;
+        }
+        let head = 0;
+        let tail = 0;
+        let area = 0;
+        let minX = x;
+        let maxX = x;
+        let minY = y;
+        let maxY = y;
+        visited[idx] = 1;
+        queueX[tail] = x;
+        queueY[tail] = y;
+        tail += 1;
+
+        while (head < tail) {
+          const cx = queueX[head];
+          const cy = queueY[head];
+          head += 1;
+          area += 1;
+          minX = Math.min(minX, cx);
+          maxX = Math.max(maxX, cx);
+          minY = Math.min(minY, cy);
+          maxY = Math.max(maxY, cy);
+
+          const neighbors = [
+            [cx - 1, cy],
+            [cx + 1, cy],
+            [cx, cy - 1],
+            [cx, cy + 1]
+          ];
+          for (const [nx, ny] of neighbors) {
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+              continue;
+            }
+            const nidx = ny * width + nx;
+            if (visited[nidx] || brightness[nidx] < diceThreshold) {
+              continue;
+            }
+            visited[nidx] = 1;
+            queueX[tail] = nx;
+            queueY[tail] = ny;
+            tail += 1;
+          }
+        }
+
+        const boxWidth = maxX - minX + 1;
+        const boxHeight = maxY - minY + 1;
+        const aspectRatio = boxWidth / boxHeight;
+        const minArea = Math.round((width * height) / 220);
+        const maxArea = Math.round((width * height) / 7);
+        if (area >= minArea && area <= maxArea && aspectRatio > 0.55 && aspectRatio < 1.8) {
+          candidates.push({ minX, maxX, minY, maxY, area });
+        }
+      }
+    }
+
+    const diceRegions = candidates.sort((a, b) => b.area - a.area).slice(0, maxDiceCount);
+    if (diceRegions.length !== maxDiceCount) {
+      return null;
+    }
+
+    const detectedValues: number[] = [];
+    for (const region of diceRegions) {
+      const padding = 6;
+      const rx = Math.max(0, region.minX - padding);
+      const ry = Math.max(0, region.minY - padding);
+      const rw = Math.min(width - rx, region.maxX - region.minX + 1 + padding * 2);
+      const rh = Math.min(height - ry, region.maxY - region.minY + 1 + padding * 2);
+      const regionData = new ImageData(rw, rh);
+      for (let yy = 0; yy < rh; yy += 1) {
+        for (let xx = 0; xx < rw; xx += 1) {
+          const src = ((ry + yy) * width + (rx + xx)) * 4;
+          const dst = (yy * rw + xx) * 4;
+          regionData.data[dst] = data[src];
+          regionData.data[dst + 1] = data[src + 1];
+          regionData.data[dst + 2] = data[src + 2];
+          regionData.data[dst + 3] = data[src + 3];
+        }
+      }
+      const value = detectDiceValue(regionData);
+      if (!value) {
+        return null;
+      }
+      detectedValues.push(value);
+    }
+
+    return detectedValues;
+  }, [detectDiceValue]);
 
   const scanCurrentFrame = useCallback((): number[] | null => {
     const video = videoRef.current;
@@ -189,38 +300,27 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
       setScanError("Scan nicht verfuegbar.");
       return null;
     }
-    const targetRatio = 5;
-    const sourceWidth = Math.min(video.videoWidth, Math.floor(video.videoHeight * targetRatio));
-    const sourceHeight = Math.floor(sourceWidth / targetRatio);
-    const sx = Math.floor((video.videoWidth - sourceWidth) / 2);
-    const sy = Math.floor((video.videoHeight - sourceHeight) / 2);
-    canvas.width = 500;
-    canvas.height = 100;
+    const sourceWidth = video.videoWidth;
+    const sourceHeight = video.videoHeight;
+    const sx = 0;
+    const sy = 0;
+    canvas.width = 480;
+    canvas.height = 360;
     context.drawImage(video, sx, sy, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
-
-    const detectedValues: number[] = [];
-    const slotWidth = Math.floor(canvas.width / maxDiceCount);
-
-    for (let index = 0; index < maxDiceCount; index += 1) {
-      const sectionX = index * slotWidth;
-      const width =
-        index === maxDiceCount - 1 ? canvas.width - sectionX : slotWidth;
-      const imageData = context.getImageData(sectionX, 0, width, canvas.height);
-      const value = detectDiceValue(imageData);
-      if (!value) {
-        setScanError("Bitte alle 5 Wuerfel sichtbar in einer Reihe ausrichten.");
-        setScanResult([]);
-        stableFramesRef.current = [];
-        setScanProgress(0);
-        return null;
-      }
-      detectedValues.push(value);
+    const frame = context.getImageData(0, 0, canvas.width, canvas.height);
+    const detectedValues = detectDiceValuesFromFrame(frame);
+    if (!detectedValues) {
+      setScanError("Bitte alle 5 Wuerfel gut sichtbar im Kamerabild platzieren.");
+      setScanResult([]);
+      stableFramesRef.current = [];
+      setScanProgress(0);
+      return null;
     }
 
     setScanError(null);
     setScanResult(detectedValues);
     return detectedValues;
-  }, []);
+  }, [detectDiceValuesFromFrame]);
 
   useEffect(() => {
     if (!scanOpen) {
@@ -407,7 +507,7 @@ export function DiceInput({ onChange, values }: DiceInputProps) {
                 />
               </div>
               <p className="text-xs text-slate-600 dark:text-zinc-400">
-                Halte alle 5 Wuerfel gleichzeitig im Bild. Wir pruefen mehrere Frames und uebernehmen erst bei stabiler Erkennung.
+                Halte alle 5 Wuerfel im Bild, wie sie gefallen sind. Wir erkennen Position und Wert automatisch.
               </p>
             </div>
           </motion.div>
