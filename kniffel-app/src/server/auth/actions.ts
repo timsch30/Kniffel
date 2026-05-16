@@ -33,21 +33,17 @@ export async function registerAction(formData: FormData): Promise<void> {
     redirectWithError("/register", validation.error);
   }
 
-  const { email, password, username } = validation.data;
+  const { password, username } = validation.data;
 
   const existingUser = await prisma.user.findFirst({
     select: {
-      email: true,
       username: true
     },
     where: {
-      OR: [{ email }, { username }]
+      username
     }
   });
 
-  if (existingUser?.email === email) {
-    redirectWithError("/register", "Diese E-Mail-Adresse ist bereits vergeben.");
-  }
 
   if (existingUser?.username === username) {
     redirectWithError("/register", "Dieser Username ist bereits vergeben.");
@@ -56,7 +52,7 @@ export async function registerAction(formData: FormData): Promise<void> {
   try {
     const user = await prisma.user.create({
       data: {
-        email,
+        email: `${username}@local.invalid`,
         passwordHash: await hashPassword(password),
         username
       },
@@ -68,7 +64,7 @@ export async function registerAction(formData: FormData): Promise<void> {
     await createSession(user.id);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      redirectWithError("/register", "Username oder E-Mail ist bereits vergeben.");
+      redirectWithError("/register", "Dieser Username ist bereits vergeben.");
     }
 
     redirectWithError("/register", "Registrierung fehlgeschlagen. Bitte erneut versuchen.");
@@ -86,8 +82,7 @@ export async function loginAction(formData: FormData): Promise<void> {
     redirectWithError(loginPath, validation.error);
   }
 
-  const { login, password } = validation.data;
-  const normalizedLogin = login.toLowerCase();
+  const { username, password } = validation.data;
 
   const user = await prisma.user.findFirst({
     select: {
@@ -95,7 +90,7 @@ export async function loginAction(formData: FormData): Promise<void> {
       passwordHash: true
     },
     where: {
-      OR: [{ email: normalizedLogin }, { username: normalizedLogin }]
+      username
     }
   });
 
