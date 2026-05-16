@@ -50,6 +50,33 @@ export function isScoreCategory(value: string): value is ScoreCategory {
   return scoreCategories.some((category) => category === value);
 }
 
+export function normalizeStruckCategories(value: unknown): ScoreCategory[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (entry): entry is ScoreCategory => typeof entry === "string" && isScoreCategory(entry)
+  );
+}
+
+export function updateStruckCategories(
+  value: unknown,
+  category: ScoreCategory,
+  struck: boolean
+): ScoreCategory[] {
+  const currentCategories = normalizeStruckCategories(value);
+  const currentSet = new Set(currentCategories);
+
+  if (struck) {
+    currentSet.add(category);
+  } else {
+    currentSet.delete(category);
+  }
+
+  return scoreCategories.filter((entry) => currentSet.has(entry));
+}
+
 export function isCategoryFilled(scoreCard: ScoreCard, category: ScoreCategory): boolean {
   return scoreCard[category] !== null && scoreCard[category] !== undefined;
 }

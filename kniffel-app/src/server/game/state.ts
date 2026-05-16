@@ -1,4 +1,4 @@
-import { scoreCategories } from "@/game/scorecard";
+import { normalizeStruckCategories, scoreCategories } from "@/game/scorecard";
 import type { GameInviteFriend, GameState } from "@/game/state";
 import { prisma } from "@/lib/prisma";
 
@@ -117,6 +117,7 @@ export async function getGameState(
           playerId: true,
           sixes: true,
           smallStraight: true,
+          struckCategories: true,
           threeOfAKind: true,
           threes: true,
           total: true,
@@ -158,6 +159,7 @@ export async function getGameState(
       ...normalizedScoreCard,
       id: scoreCard.id,
       playerId: scoreCard.playerId,
+      struckCategories: normalizeStruckCategories(scoreCard.struckCategories),
       total: scoreCard.total,
       upperBonus: scoreCard.upperBonus
     };

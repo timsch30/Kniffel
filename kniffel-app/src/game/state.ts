@@ -1,4 +1,4 @@
-import type { ScoreCard } from "@/game/types";
+import type { ScoreCard, ScoreCategory } from "@/game/types";
 
 export type GameStatePlayer = {
   displayName: string;
@@ -7,9 +7,10 @@ export type GameStatePlayer = {
   userId: string | null;
 };
 
-export type GameStateScoreCard = ScoreCard & {
+export type GameStateScoreCard = Omit<ScoreCard, "struckCategories"> & {
   id: string;
   playerId: string;
+  struckCategories: ScoreCategory[];
   total: number | null;
   upperBonus: number | null;
 };

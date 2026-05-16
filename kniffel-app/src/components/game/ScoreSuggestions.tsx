@@ -1,14 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2, LockKeyhole, Sparkles, Star } from "lucide-react";
+import { Ban, CheckCircle2, LockKeyhole, Sparkles, Star } from "lucide-react";
 
 import { Badge } from "@/components/ui/Badge";
 import type { ScoreCard, ScoreCategory } from "@/game/types";
 import {
-  calculateCategoryPriority,
   getAvailableScoreSuggestions,
-  getRecommendedCategory,
+  getRankedScoreSuggestions,
   isValidDiceValues
 } from "@/game/scoring";
 
@@ -34,23 +33,8 @@ export function ScoreSuggestions({
   }
 
   const suggestions = getAvailableScoreSuggestions(scoreCard, diceValues);
-  const recommendedCategory = getRecommendedCategory(scoreCard, diceValues);
-  const openSuggestions = suggestions
-    .filter((suggestion) => !suggestion.used)
-    .sort((left, right) => {
-      if (left.category === recommendedCategory) {
-        return -1;
-      }
-
-      if (right.category === recommendedCategory) {
-        return 1;
-      }
-
-      return (
-        right.score - left.score ||
-        calculateCategoryPriority(right.category) - calculateCategoryPriority(left.category)
-      );
-    });
+  const openSuggestions = getRankedScoreSuggestions(scoreCard, diceValues);
+  const recommendedCategory = openSuggestions[0]?.category ?? null;
   const usedSuggestions = suggestions.filter((suggestion) => suggestion.used);
 
   return (
@@ -64,6 +48,7 @@ export function ScoreSuggestions({
         {openSuggestions.map((suggestion, index) => {
           const isSelected = selectedCategory === suggestion.category;
           const isRecommended = suggestion.category === recommendedCategory;
+          const isStrike = suggestion.action === "strike";
 
           return (
             <motion.button
@@ -73,7 +58,9 @@ export function ScoreSuggestions({
                 isSelected
                   ? "border-felt bg-felt/10 text-ink ring-4 ring-felt/20 dark:border-emerald-300/70 dark:bg-emerald-300/10 dark:text-zinc-50 dark:ring-emerald-300/15"
                   : isRecommended
-                    ? "border-amber-300/80 bg-[linear-gradient(135deg,rgba(255,251,235,0.96),rgba(236,253,245,0.86))] text-ink shadow-[0_14px_38px_rgba(245,158,11,0.18)] hover:border-amber-400 hover:shadow-[0_18px_46px_rgba(245,158,11,0.22)] dark:border-amber-300/30 dark:bg-[linear-gradient(135deg,rgba(120,53,15,0.26),rgba(6,78,59,0.18))] dark:text-zinc-50"
+                    ? isStrike
+                      ? "border-rose-300/80 bg-rose-50/95 text-ink shadow-[0_14px_38px_rgba(225,29,72,0.12)] hover:border-rose-400 hover:shadow-[0_18px_46px_rgba(225,29,72,0.16)] dark:border-rose-300/30 dark:bg-rose-950/30 dark:text-zinc-50"
+                      : "border-amber-300/80 bg-[linear-gradient(135deg,rgba(255,251,235,0.96),rgba(236,253,245,0.86))] text-ink shadow-[0_14px_38px_rgba(245,158,11,0.18)] hover:border-amber-400 hover:shadow-[0_18px_46px_rgba(245,158,11,0.22)] dark:border-amber-300/30 dark:bg-[linear-gradient(135deg,rgba(120,53,15,0.26),rgba(6,78,59,0.18))] dark:text-zinc-50"
                     : "border-slate-200 bg-white/90 text-ink hover:border-felt/40 hover:bg-white hover:shadow-[0_12px_32px_rgba(22,120,87,0.1)] dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:hover:border-emerald-300/30 dark:hover:bg-white/10"
               ].join(" ")}
               initial={{ opacity: 0, y: 6 }}
@@ -89,7 +76,10 @@ export function ScoreSuggestions({
                 <motion.span
                   aria-hidden="true"
                   animate={{ opacity: [0.35, 0.75, 0.35], scale: [1, 1.03, 1] }}
-                  className="absolute -right-8 -top-10 h-24 w-24 rounded-full bg-amber-300/25 blur-2xl dark:bg-amber-200/10"
+                  className={[
+                    "absolute -right-8 -top-10 h-24 w-24 rounded-full blur-2xl",
+                    isStrike ? "bg-rose-300/20 dark:bg-rose-200/10" : "bg-amber-300/25 dark:bg-amber-200/10"
+                  ].join(" ")}
                   transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
                 />
               ) : null}
@@ -101,6 +91,12 @@ export function ScoreSuggestions({
                       className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500 dark:fill-amber-300 dark:text-amber-300"
                     />
                   ) : null}
+                  {isStrike ? (
+                    <Ban
+                      aria-hidden="true"
+                      className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-300"
+                    />
+                  ) : null}
                   <span className="block truncate font-semibold">{suggestion.label}</span>
                 </span>
                 <span className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400">
@@ -110,13 +106,24 @@ export function ScoreSuggestions({
                       Ausgewaehlt
                     </>
                   ) : isRecommended ? (
-                    <Badge className="border-amber-300/60 bg-amber-100/80 text-amber-800 dark:border-amber-200/20 dark:bg-amber-200/10 dark:text-amber-100">
-                      Empfohlen
+                    <Badge
+                      className={
+                        isStrike
+                          ? "border-rose-300/60 bg-rose-100/80 text-rose-800 dark:border-rose-200/20 dark:bg-rose-200/10 dark:text-rose-100"
+                          : "border-amber-300/60 bg-amber-100/80 text-amber-800 dark:border-amber-200/20 dark:bg-amber-200/10 dark:text-amber-100"
+                      }
+                    >
+                      {isStrike ? "Streichen" : "Empfohlen"}
                     </Badge>
                   ) : (
-                    "frei"
+                    isStrike ? "Streichoption" : "frei"
                   )}
                 </span>
+                {suggestion.reason ? (
+                  <span className="mt-1 inline-flex w-fit rounded-full bg-slate-100 px-2 py-0.5 text-[0.7rem] font-semibold text-slate-600 dark:bg-white/10 dark:text-zinc-300">
+                    {suggestion.reason}
+                  </span>
+                ) : null}
               </span>
               <span className="shrink-0 text-right text-lg font-semibold tabular-nums">
                 {suggestion.score}

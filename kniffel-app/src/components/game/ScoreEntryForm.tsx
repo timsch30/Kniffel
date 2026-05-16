@@ -57,6 +57,7 @@ export function ScoreEntryForm({ action, onSaved, scoreCard }: ScoreEntryFormPro
       : manualPointsValid
         ? parsedManualPoints
         : null;
+  const selectedIsStrike = selectedScore === 0;
 
   return (
     <form action={submit} className="grid gap-5 pb-36">
@@ -170,7 +171,13 @@ export function ScoreEntryForm({ action, onSaved, scoreCard }: ScoreEntryFormPro
             </p>
             <p className="truncate text-sm font-semibold text-ink dark:text-zinc-50">
               {selectedLabel
-                ? `${selectedLabel}${selectedScore !== null ? ` - ${selectedScore} Punkte` : ""}`
+                ? `${selectedLabel}${
+                    selectedScore !== null
+                      ? selectedIsStrike
+                        ? " - streichen"
+                        : ` - ${selectedScore} Punkte`
+                      : ""
+                  }`
                 : mode === "dice"
                   ? "5 Wuerfel waehlen"
                   : "Kategorie und Punkte waehlen"}

@@ -18,6 +18,7 @@ export type ScoreCategory =
   | "chance";
 
 export type ScoreCard = Partial<Record<ScoreCategory, number | null>> & {
+  struckCategories?: unknown;
   upperBonus?: number | null;
   total?: number | null;
 };
