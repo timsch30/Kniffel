@@ -199,27 +199,35 @@ export function GameTurnScreen({
   }, []);
 
   return (
-    <section className="relative -mx-4 min-h-[100svh] bg-slate-50 px-4 pb-32 pt-3 sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-slate-200/80 sm:bg-white/70 sm:p-5 sm:pb-32 sm:shadow-card sm:backdrop-blur-xl dark:bg-zinc-950 dark:sm:border-white/10 dark:sm:bg-zinc-900/70 dark:sm:shadow-card-dark">
+    <section className="relative -mx-4 min-h-[100svh] overflow-hidden px-4 pb-32 pt-3 text-white sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-white/10 sm:bg-white/[0.06] sm:p-5 sm:pb-32 sm:shadow-[0_28px_90px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(244,185,66,0.14),transparent_28rem),radial-gradient(circle_at_15%_18%,rgba(16,185,129,0.15),transparent_24rem)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.06] [background-image:linear-gradient(90deg,white_1px,transparent_1px),linear-gradient(white_1px,transparent_1px)] [background-size:32px_32px]"
+      />
       <div className="grid gap-4">
-        <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200/70 bg-slate-50/95 px-4 py-3 backdrop-blur-xl sm:static sm:mx-0 sm:rounded-lg sm:border sm:bg-white/80 dark:border-white/10 dark:bg-zinc-950/95 dark:sm:bg-white/5">
+        <div className="sticky top-0 z-20 -mx-4 border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:static sm:mx-0 sm:rounded-lg sm:border sm:bg-white/[0.08]">
           <div className="flex items-center justify-between gap-3">
             <button
               aria-label="Zurueck zur Uebersicht"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-white/10 dark:text-zinc-50"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.08] text-emerald-50 shadow-sm transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.13]"
               onClick={onBackToLobby}
               type="button"
             >
               <ArrowLeft aria-hidden="true" className="h-5 w-5" />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xl font-semibold tracking-tight text-ink dark:text-zinc-50">
+              <h1 className="truncate text-xl font-semibold tracking-tight text-white">
                 {state.name}
               </h1>
-              <p className="mt-0.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+              <p className="mt-0.5 text-sm font-medium text-emerald-100/80">
                 Am Zug: {currentPlayer?.displayName ?? "offen"}
               </p>
             </div>
-            <div className="shrink-0 rounded-lg bg-ink px-3 py-2 text-right text-white dark:bg-white dark:text-zinc-950">
+            <div className="shrink-0 rounded-lg border border-brass/30 bg-brass/95 px-3 py-2 text-right text-emerald-950 shadow-[0_12px_30px_rgba(244,185,66,0.18)]">
               <p className="text-[0.68rem] font-semibold uppercase opacity-70">Punkte</p>
               <p className="text-base font-semibold tabular-nums">{viewedTotal}</p>
             </div>
@@ -238,24 +246,51 @@ export function GameTurnScreen({
               const own = player.id === currentUserPlayer?.id;
 
               return (
-                <article
+                <motion.article
+                  animate={
+                    shouldReduceMotion
+                      ? { opacity: 1 }
+                      : { opacity: active ? 1 : 0.78, scale: active ? 1 : 0.985, y: active ? -2 : 0 }
+                  }
                   className={cn(
-                    "w-[min(calc(100vw-2.75rem),28rem)] shrink-0 rounded-lg border bg-white/85 p-4 shadow-sm [scroll-snap-align:center] dark:bg-white/5",
+                    "relative w-[min(calc(100vw-2.75rem),28rem)] shrink-0 overflow-hidden rounded-lg border p-4 shadow-[0_16px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl [scroll-snap-align:center]",
                     active
-                      ? "border-emerald-500/35 dark:border-emerald-300/30"
-                      : "border-slate-200 dark:border-white/10"
+                      ? "border-brass/45 bg-[linear-gradient(145deg,rgba(244,185,66,0.16),rgba(255,255,255,0.09))]"
+                      : "border-white/10 bg-white/[0.07]"
                   )}
                   key={player.id}
+                  layout="position"
                   ref={(element) => {
                     playerCardRefs.current[player.id] = element;
                   }}
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0.01 }
+                      : { damping: 28, stiffness: 360, type: "spring" }
+                  }
                 >
+                  {active ? (
+                    <motion.span
+                      aria-hidden="true"
+                      animate={
+                        shouldReduceMotion
+                          ? { opacity: 0.35 }
+                          : { opacity: [0.22, 0.42, 0.22], scale: [0.96, 1.04, 0.96] }
+                      }
+                      className="absolute -right-10 -top-12 h-32 w-32 rounded-full bg-brass/20 blur-2xl"
+                      transition={
+                        shouldReduceMotion
+                          ? { duration: 0.01 }
+                          : { duration: 2.8, ease: "easeInOut", repeat: Infinity }
+                      }
+                    />
+                  ) : null}
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <h2 className="truncate text-lg font-semibold text-ink dark:text-zinc-50">
+                      <h2 className="truncate text-lg font-semibold text-white">
                         {player.displayName}
                       </h2>
-                      <p className="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
+                      <p className="mt-0.5 text-xs text-emerald-50/60">
                         Position {player.position}
                       </p>
                     </div>
@@ -264,15 +299,15 @@ export function GameTurnScreen({
                     </Badge>
                   </div>
                   <ScoreCardBlock compact scoreCard={scoreCard} />
-                </article>
+                </motion.article>
               );
             })}
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200/80 bg-white/85 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
+        <div className="rounded-lg border border-white/10 bg-white/[0.08] p-3 shadow-[0_16px_44px_rgba(0,0,0,0.18)] backdrop-blur-xl">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-ink dark:text-zinc-50">Platzierung</h2>
+            <h2 className="text-sm font-semibold text-white">Platzierung</h2>
             {viewedPlayer ? (
               <Badge variant="neutral" className="max-w-36 truncate">
                 {viewedPlayer.displayName}
@@ -290,10 +325,10 @@ export function GameTurnScreen({
                   className={cn(
                     "flex items-center justify-between gap-3 rounded-md border px-2 py-1.5 text-sm transition-colors",
                     active
-                      ? "border-emerald-500/30 bg-emerald-50 font-semibold text-emerald-950 shadow-sm dark:border-emerald-300/25 dark:bg-emerald-300/10 dark:text-emerald-50"
+                      ? "border-brass/35 bg-brass/[0.12] font-semibold text-amber-50 shadow-sm"
                       : viewed
-                        ? "border-emerald-200/70 bg-emerald-50/70 font-semibold text-emerald-950 dark:border-emerald-300/15 dark:bg-emerald-300/10 dark:text-emerald-50"
-                        : "border-transparent text-slate-600 dark:text-zinc-400"
+                        ? "border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-50"
+                        : "border-transparent text-emerald-50/60"
                   )}
                   initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
                   key={entry.playerId}
@@ -312,13 +347,13 @@ export function GameTurnScreen({
       </div>
 
       {userTurn && currentUserScoreCard ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 dark:shadow-[0_-18px_44px_rgba(0,0,0,0.45)]">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">
+              <p className="text-xs font-semibold text-emerald-50/60">
                 {filledCount}/{scoreCategories.length} Felder belegt
               </p>
-              <p className="truncate text-sm font-semibold text-ink dark:text-zinc-50">
+              <p className="truncate text-sm font-semibold text-white">
                 Kategorie eintragen
               </p>
             </div>
@@ -343,24 +378,32 @@ export function GameTurnScreen({
             role="status"
             transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.2, ease: "easeOut" }}
           >
-            <div className="w-full max-w-sm rounded-lg border border-emerald-200 bg-white p-4 text-ink shadow-2xl dark:border-emerald-300/20 dark:bg-zinc-900 dark:text-zinc-50">
+            <div className="relative w-full max-w-sm overflow-hidden rounded-lg border border-brass/30 bg-[linear-gradient(145deg,rgba(6,78,59,0.96),rgba(2,23,19,0.96))] p-4 text-white shadow-2xl">
+              <motion.span
+                aria-hidden="true"
+                animate={shouldReduceMotion ? { opacity: 0.18 } : { opacity: [0.12, 0.28, 0.12] }}
+                className="absolute inset-x-8 top-0 h-px bg-brass"
+                transition={
+                  shouldReduceMotion ? { duration: 0.01 } : { duration: 1.2, repeat: Infinity }
+                }
+              />
               <div className="flex items-start gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-300/10 dark:text-emerald-200">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-emerald-300/20 bg-emerald-300/10 text-emerald-100">
                   <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">Score gespeichert</p>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-zinc-300">
+                  <p className="mt-1 text-sm text-emerald-50/75">
                     {turnFeedback.nextIsCurrentUser
                       ? "Du bist wieder dran."
                       : `Weiter: ${turnFeedback.nextPlayerName}`}
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-500 dark:text-zinc-400">
-                    <span className="rounded-full bg-slate-100 px-2 py-1 dark:bg-white/10">
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-emerald-50/70">
+                    <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1">
                       Runde {turnFeedback.roundNumber}
                     </span>
                     {turnFeedback.leaderName ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-amber-800 dark:bg-amber-300/10 dark:text-amber-100">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-brass/20 bg-brass/[0.12] px-2 py-1 text-amber-100">
                         <Trophy aria-hidden="true" className="h-3.5 w-3.5" />
                         {turnFeedback.leaderName}
                       </span>
@@ -377,24 +420,28 @@ export function GameTurnScreen({
         {entryOpen && currentUserScoreCard ? (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
-            className="fixed inset-0 z-[60] overflow-y-auto bg-slate-50 text-ink dark:bg-zinc-950 dark:text-zinc-50"
+            className="fixed inset-0 z-[60] overflow-y-auto bg-emerald-950 text-white"
             exit={{ opacity: 0, y: 16 }}
             initial={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
           >
-            <div className="sticky top-0 z-[70] border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95">
+            <div
+              aria-hidden="true"
+              className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(244,185,66,0.13),transparent_26rem),radial-gradient(circle_at_15%_18%,rgba(16,185,129,0.14),transparent_24rem),linear-gradient(180deg,#064e3b,#021713)]"
+            />
+            <div className="sticky top-0 z-[70] border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.26)] backdrop-blur-xl">
               <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-300">
+                  <p className="text-xs font-bold uppercase text-brass">
                     Eintragen
                   </p>
-                  <h2 className="truncate text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+                  <h2 className="truncate text-lg font-semibold tracking-tight text-white">
                     Wuerfel und Kategorie
                   </h2>
                 </div>
                 <button
                   aria-label="Eintragen schliessen"
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-white/10 dark:text-zinc-50"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.08] text-emerald-50 shadow-sm transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.13]"
                   onClick={() => setEntryOpen(false)}
                   type="button"
                 >
@@ -423,24 +470,24 @@ export function GameTurnScreen({
         {showRollModePicker ? (
           <motion.div
             animate={{ opacity: 1 }}
-            className="fixed inset-0 z-[90] grid place-items-center bg-black/45 p-4"
+            className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 backdrop-blur-sm"
             exit={{ opacity: 0 }}
             initial={{ opacity: 0 }}
           >
             <div className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
               <button
-                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-slate-200 bg-white p-5 text-center text-ink shadow-xl transition-all hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:border-white/20"
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-5 text-center text-emerald-50 shadow-xl backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12]"
                 onClick={() => {
                   setRollMode("real");
                   setShowRollModePicker(false);
                 }}
                 type="button"
               >
-                <Dices className="mx-auto h-10 w-10 text-slate-700 dark:text-zinc-100" />
+                <Dices className="mx-auto h-10 w-10 text-emerald-100" />
                 <span className="text-lg font-semibold">Echte Wuerfel</span>
               </button>
               <button
-                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-5 text-center text-emerald-950 shadow-xl transition-all hover:-translate-y-0.5 hover:border-emerald-400 dark:border-emerald-300/40 dark:bg-emerald-300/15 dark:text-emerald-50 dark:hover:border-emerald-300/70"
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-brass/35 bg-[linear-gradient(145deg,rgba(244,185,66,0.18),rgba(16,185,129,0.12))] p-5 text-center text-white shadow-xl backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-brass/60 hover:bg-brass/15"
                 onClick={() => {
                   setRollMode("online");
                   setShowRollModePicker(false);
@@ -448,7 +495,7 @@ export function GameTurnScreen({
                 }}
                 type="button"
               >
-                <Smartphone className="mx-auto h-10 w-10 text-emerald-700 dark:text-emerald-200" />
+                <Smartphone className="mx-auto h-10 w-10 text-brass" />
                 <span className="text-lg font-semibold">Online Wuerfel</span>
               </button>
             </div>

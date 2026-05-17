@@ -26,7 +26,7 @@ export default async function SocialPage({ searchParams }: SocialPageProps) {
   return (
     <>
       <DashboardBackdrop />
-      <PageContainer className="felt-ui grid gap-6 pb-16 pt-7 sm:pt-10" size="xl">
+      <PageContainer className="grid gap-6 pb-16 pt-7 sm:pt-10" size="xl">
       <SocialDashboard
         acceptFriendRequestAction={acceptFriendRequestAction}
         declineFriendRequestAction={declineFriendRequestAction}

@@ -8,11 +8,11 @@ type AlertVariant = "info" | "success" | "danger";
 
 const variants: Record<AlertVariant, string> = {
   danger:
-    "border-red-500/20 bg-red-50 text-red-800 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-100",
+    "border-red-300/20 bg-red-400/10 text-red-100",
   info:
-    "border-slate-200 bg-slate-50 text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200",
+    "border-white/10 bg-white/[0.08] text-emerald-50/85",
   success:
-    "border-emerald-500/20 bg-emerald-50 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100"
+    "border-emerald-300/20 bg-emerald-300/10 text-emerald-100"
 };
 
 const icons: Record<AlertVariant, ReactNode> = {

@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
-  --background: #f7f8fb;
-  --foreground: #111827;
-  --muted: #64748b;
-  --surface: rgba(255, 255, 255, 0.82);
-  --surface-strong: #ffffff;
-  --border: rgba(15, 23, 42, 0.1);
-  --grid: rgba(15, 23, 42, 0.045);
+  color-scheme: dark;
+  --background: #021713;
+  --foreground: #f4fff9;
+  --muted: rgba(236, 253, 245, 0.72);
+  --surface: rgba(255, 255, 255, 0.08);
+  --surface-strong: rgba(255, 255, 255, 0.12);
+  --border: rgba(255, 255, 255, 0.11);
+  --grid: rgba(255, 255, 255, 0.055);
 }
 
 * {
@@ -26,7 +26,9 @@ body {
   min-height: 100%;
   margin: 0;
   background:
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.96), rgba(247, 248, 251, 0.88) 360px, var(--background)),
+    radial-gradient(circle at 50% 16%, rgba(22, 120, 87, 0.46), transparent 38rem),
+    radial-gradient(circle at 18% 0%, rgba(244, 185, 66, 0.16), transparent 28rem),
+    linear-gradient(180deg, #064e3b 0%, #052e2b 42%, var(--background) 100%),
     var(--background);
   color: var(--foreground);
   font-family:
@@ -66,83 +68,12 @@ textarea {
 }
 
 ::selection {
-  background: rgba(31, 122, 91, 0.18);
-}
-
-.felt-ui label {
-  color: rgba(236, 253, 245, 0.9);
-}
-
-.felt-ui .text-ink,
-.felt-ui .text-slate-800,
-.felt-ui .text-slate-700 {
-  color: #ffffff;
-}
-
-.felt-ui .text-slate-600,
-.felt-ui .text-slate-500,
-.felt-ui .text-zinc-400 {
-  color: rgba(236, 253, 245, 0.72);
-}
-
-.felt-ui .text-felt {
-  color: #f4b942;
-}
-
-.felt-ui .shadow-card {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.09);
-  color: #ffffff;
-  box-shadow: 0 18px 58px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(16px);
-}
-
-.felt-ui input {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.16);
-  color: #ffffff;
-}
-
-.felt-ui input::placeholder {
-  color: rgba(236, 253, 245, 0.42);
-}
-
-.felt-ui input:hover {
-  border-color: rgba(255, 255, 255, 0.24);
-}
-
-.felt-ui input:focus {
-  border-color: rgba(244, 185, 66, 0.72);
-  --tw-ring-color: rgba(244, 185, 66, 0.2);
-}
-
-.felt-ui label + input + p,
-.felt-ui input + p {
-  color: rgba(236, 253, 245, 0.72);
+  background: rgba(244, 185, 66, 0.28);
 }
 
 :focus-visible {
-  outline: 2px solid #167857;
+  outline: 2px solid #f4b942;
   outline-offset: 3px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --background: #09090b;
-    --foreground: #f4f4f5;
-    --muted: #a1a1aa;
-    --surface: rgba(24, 24, 27, 0.76);
-    --surface-strong: #18181b;
-    --border: rgba(255, 255, 255, 0.1);
-    --grid: rgba(255, 255, 255, 0.045);
-  }
-
-  body {
-    background:
-      linear-gradient(to bottom, rgba(24, 24, 27, 0.8), rgba(9, 9, 11, 0.94) 360px, var(--background)),
-      var(--background);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -170,7 +170,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   return (
     <>
     <DashboardBackdrop />
-    <PageContainer className="felt-ui grid gap-8 pb-16 pt-7 sm:pt-10" size="xl">
+    <PageContainer className="grid gap-8 pb-16 pt-7 sm:pt-10" size="xl">
       {error ? <Alert variant="danger">{error}</Alert> : null}
 
       <section className="relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.08] p-5 text-white shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-6">

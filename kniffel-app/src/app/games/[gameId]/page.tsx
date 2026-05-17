@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 
+import { DashboardBackdrop } from "@/components/dashboard/DashboardBackdrop";
 import { GameView } from "@/components/game/GameView";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { requireCurrentUser } from "@/server/auth/session";
@@ -45,18 +46,21 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
   const boundRestartGameAction = restartGameAction.bind(null, initialState.gameId);
 
   return (
-    <PageContainer className="grid gap-4 sm:gap-5" size="xl">
-      <GameView
-        currentUserId={user.id}
-        enterScoreAction={boundEnterScoreAction}
-        error={error}
-        initialState={initialState}
-        inviteFriendToGameAction={inviteFriendToGameAction}
-        inviteLink={inviteLink}
-        movePlayerAction={boundMovePlayerAction}
-        restartGameAction={boundRestartGameAction}
-        startGameAction={boundStartGameAction}
-      />
-    </PageContainer>
+    <>
+      <DashboardBackdrop />
+      <PageContainer className="grid gap-4 pb-20 pt-4 sm:gap-5 sm:pt-6" size="xl">
+        <GameView
+          currentUserId={user.id}
+          enterScoreAction={boundEnterScoreAction}
+          error={error}
+          initialState={initialState}
+          inviteFriendToGameAction={inviteFriendToGameAction}
+          inviteLink={inviteLink}
+          movePlayerAction={boundMovePlayerAction}
+          restartGameAction={boundRestartGameAction}
+          startGameAction={boundStartGameAction}
+        />
+      </PageContainer>
+    </>
   );
 }

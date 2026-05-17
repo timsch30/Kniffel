@@ -451,7 +451,7 @@ export function ScoreEntryForm({
 
   return (
     <form action={submit} className="grid gap-5 pb-36">
-      <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-white/5">
+      <div className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-white/[0.07] p-1">
         {([
           { icon: Calculator, id: "dice", label: "Wuerfel" },
           { icon: PencilLine, id: "manual", label: "Manuell" }
@@ -463,10 +463,10 @@ export function ScoreEntryForm({
             <button
               aria-pressed={active}
               className={[
-                "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all",
+                "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-transparent px-3 py-2 text-sm font-semibold transition-all",
                 active
-                  ? "bg-white text-ink shadow-sm dark:bg-zinc-900 dark:text-zinc-50"
-                  : "text-slate-500 hover:text-ink dark:text-zinc-400 dark:hover:text-zinc-50"
+                  ? "border border-brass/25 bg-white/[0.11] text-white shadow-sm"
+                  : "text-emerald-50/55 hover:text-white"
               ].join(" ")}
               disabled={onlineRollMode && entryMode.id === "dice"}
               key={entryMode.id}
@@ -484,7 +484,7 @@ export function ScoreEntryForm({
         <section className="grid gap-5" ref={suggestionsSectionRef}>
           {onlineRollMode ? (
             <div className="grid gap-4 lg:grid-cols-[minmax(18rem,0.85fr)_minmax(22rem,1.15fr)] lg:items-start">
-              <section className="relative grid gap-4 overflow-hidden rounded-lg border border-emerald-900/10 bg-[linear-gradient(145deg,rgba(22,120,87,0.92),rgba(17,24,39,0.94))] p-3 shadow-card dark:border-emerald-200/10 dark:bg-[linear-gradient(145deg,rgba(6,78,59,0.82),rgba(9,9,11,0.96))] dark:shadow-card-dark">
+              <section className="relative grid gap-4 overflow-hidden rounded-lg border border-brass/20 bg-[linear-gradient(145deg,rgba(6,78,59,0.9),rgba(2,23,19,0.96))] p-3 shadow-[0_18px_58px_rgba(0,0,0,0.26)]">
                 <motion.div
                   aria-hidden="true"
                   animate={
@@ -526,7 +526,7 @@ export function ScoreEntryForm({
                   </motion.p>
                 </div>
 
-                <div className="relative rounded-lg border border-white/15 bg-emerald-950/25 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-24px_48px_rgba(0,0,0,0.18)] dark:bg-black/25">
+                <div className="relative rounded-lg border border-white/15 bg-black/25 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-24px_48px_rgba(0,0,0,0.18)]">
                   <div className="grid grid-cols-5 gap-2 sm:gap-3">
                     {diceSlots.map((value, index) => (
                       <motion.button
@@ -562,7 +562,7 @@ export function ScoreEntryForm({
                         {heldDice[index] ? (
                           <span
                             aria-hidden="true"
-                            className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full border border-amber-200/70 bg-amber-50 text-amber-800 shadow-sm dark:border-amber-100/30 dark:bg-amber-300/90 dark:text-amber-950"
+                            className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full border border-amber-100/30 bg-amber-300/90 text-amber-950 shadow-sm"
                           >
                             <LockKeyhole className="h-3 w-3" />
                           </span>
@@ -573,7 +573,7 @@ export function ScoreEntryForm({
                 </div>
 
                 <div className="relative grid gap-3 rounded-lg border border-white/10 bg-white/10 p-3 text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
-                  <label className="grid gap-2 text-xs font-semibold text-slate-600 dark:text-zinc-300">
+                  <label className="grid gap-2 text-xs font-semibold text-emerald-50/80">
                     <span className="flex items-center justify-between gap-3">
                       <span className="inline-flex items-center gap-1.5 text-emerald-50">
                         <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
@@ -582,7 +582,7 @@ export function ScoreEntryForm({
                       <span className="text-emerald-50/80">Stufe {shakeSensitivity}</span>
                     </span>
                     <input
-                      className="w-full accent-brass dark:accent-brass"
+                      className="w-full accent-brass"
                       max={5}
                       min={1}
                       onChange={(event) => handleSensitivityChange(event.target.value)}
@@ -593,7 +593,7 @@ export function ScoreEntryForm({
                   </label>
                   {motionPermission === "needs-permission" || motionPermission === "denied" ? (
                     <button
-                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-white/20 bg-white/90 px-3 py-2 text-sm font-semibold text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/90 dark:text-zinc-950"
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-brass/30 bg-brass px-3 py-2 text-sm font-semibold text-emerald-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-300"
                       onClick={requestMotionPermission}
                       type="button"
                     >
@@ -607,7 +607,7 @@ export function ScoreEntryForm({
                   ) : null}
                 </div>
                 <button
-                  className="relative inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 dark:bg-white dark:text-zinc-950 dark:hover:bg-amber-50"
+                  className="relative inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-brass/40 bg-brass px-4 py-2 text-sm font-semibold text-emerald-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0"
                   disabled={rollCount >= 3 || isRolling}
                   onClick={rollDice}
                   type="button"
@@ -617,10 +617,10 @@ export function ScoreEntryForm({
                 </button>
               </section>
 
-              <section className="grid gap-3 rounded-lg border border-slate-200 bg-white/85 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
+              <section className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-3 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-3 px-1">
-                  <h3 className="text-sm font-semibold text-ink dark:text-zinc-50">Kniffel-Block</h3>
-                  <span className="text-xs font-semibold text-slate-500 dark:text-zinc-400">
+                  <h3 className="text-sm font-semibold text-white">Kniffel-Block</h3>
+                  <span className="text-xs font-semibold text-emerald-50/60">
                     {validDiceValues ? "Feld klicken" : "erst wuerfeln"}
                   </span>
                 </div>
@@ -628,7 +628,7 @@ export function ScoreEntryForm({
                   {recommendedSuggestion ? (
                     <motion.button
                       animate={{ opacity: 1, scale: 1, y: 0 }}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-left shadow-sm dark:border-amber-300/25 dark:bg-amber-300/10"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-brass/35 bg-brass/[0.12] px-3 py-2 text-left shadow-sm"
                       exit={{ opacity: 0, scale: shouldReduceMotion ? 1 : 0.98, y: 0 }}
                       initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.98, y: 6 }}
                       key={`${diceValues.join("-")}-${recommendedSuggestion.category}`}
@@ -645,15 +645,15 @@ export function ScoreEntryForm({
                       whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
                     >
                       <span className="min-w-0">
-                        <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-amber-800 dark:text-amber-100">
+                        <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-amber-100">
                           <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
                           Beste Option
                         </span>
-                        <span className="mt-0.5 block truncate text-sm font-semibold text-ink dark:text-zinc-50">
+                        <span className="mt-0.5 block truncate text-sm font-semibold text-white">
                           {recommendedSuggestion.label}
                         </span>
                       </span>
-                      <span className="shrink-0 text-right text-sm font-semibold tabular-nums text-amber-900 dark:text-amber-100">
+                      <span className="shrink-0 text-right text-sm font-semibold tabular-nums text-amber-100">
                         {recommendedSuggestion.score}
                         <span className="block text-[0.68rem] font-medium">
                           {recommendedSuggestion.action === "strike" ? "streichen" : "Punkte"}
@@ -710,10 +710,10 @@ export function ScoreEntryForm({
                   className={[
                     "group relative flex min-h-14 items-center justify-between gap-3 overflow-hidden rounded-lg border px-4 py-3 text-left transition-all duration-200",
                     used
-                      ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-zinc-500"
-                      : "border-slate-200 bg-white/90 text-ink shadow-sm hover:-translate-y-0.5 hover:border-emerald-500/45 hover:bg-white hover:shadow-[0_14px_34px_rgba(15,23,42,0.1)] focus-visible:ring-4 focus-visible:ring-emerald-500/20 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:hover:border-emerald-300/45 dark:hover:bg-white/10",
+                      ? "cursor-not-allowed border-white/10 bg-white/[0.05] text-emerald-50/40"
+                      : "border-white/10 bg-white/[0.08] text-emerald-50 shadow-sm hover:-translate-y-0.5 hover:border-emerald-300/45 hover:bg-white/[0.12] focus-visible:ring-4 focus-visible:ring-brass/25",
                     selected
-                      ? "border-emerald-600 bg-emerald-50 ring-4 ring-emerald-500/15 dark:border-emerald-300/70 dark:bg-emerald-300/15 dark:ring-emerald-300/15"
+                      ? "border-brass/70 bg-brass/[0.14] ring-4 ring-brass/15"
                       : ""
                   ].join(" ")}
                   disabled={used}
@@ -725,12 +725,12 @@ export function ScoreEntryForm({
                     {selected ? (
                       <CheckCircle2
                         aria-hidden="true"
-                        className="h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300"
+                        className="h-4 w-4 shrink-0 text-brass"
                       />
                     ) : null}
                     <span className="truncate">{scoreCategoryLabels[category]}</span>
                   </span>
-                  <span className="rounded-full border border-current/10 bg-white/70 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-white/5 dark:text-zinc-400">
+                  <span className="rounded-full border border-current/10 bg-white/[0.07] px-2 py-0.5 text-xs font-semibold text-emerald-50/60">
                     {used ? "belegt" : selected ? "ausgewaehlt" : "frei"}
                   </span>
                 </button>
@@ -738,10 +738,10 @@ export function ScoreEntryForm({
             })}
           </div>
 
-          <label className="grid gap-2 text-sm font-medium text-slate-800 dark:text-zinc-200">
+          <label className="grid gap-2 text-sm font-medium text-emerald-50/85">
             Punkte
             <input
-              className="min-h-12 rounded-lg border border-slate-200 bg-white/95 px-4 py-3 text-base text-ink shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-white/5 dark:text-zinc-50 dark:focus:border-emerald-300 dark:focus:ring-emerald-300/10"
+              className="min-h-12 rounded-lg border border-white/10 bg-black/15 px-4 py-3 text-base text-white shadow-sm outline-none transition-all placeholder:text-emerald-50/40 focus:border-brass/70 focus:ring-4 focus:ring-brass/15"
               inputMode="numeric"
               max={100}
               min={0}
@@ -764,33 +764,33 @@ export function ScoreEntryForm({
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/45 p-4">
           <div
             aria-modal="true"
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 text-ink shadow-xl dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-50"
+            className="w-full max-w-md rounded-lg border border-brass/25 bg-[linear-gradient(145deg,rgba(6,78,59,0.96),rgba(2,23,19,0.96))] p-4 text-white shadow-xl"
             role="dialog"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-300">
+                <p className="text-xs font-bold uppercase text-brass">
                   Eintrag bestaetigen
                 </p>
                 <h3 className="mt-1 text-lg font-semibold tracking-tight">{confirmationLabel}</h3>
               </div>
               <button
                 aria-label="Bestaetigung schliessen"
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/10"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
                 onClick={() => setConfirmationCategory(null)}
                 type="button"
               >
                 <X aria-hidden="true" className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-3 text-sm text-slate-600 dark:text-zinc-300">
+            <p className="mt-3 text-sm text-emerald-50/70">
               {confirmationScore === 0
                 ? "Dieses Feld wird mit 0 Punkten gestrichen."
                 : `${confirmationScore ?? 0} Punkte in dieses Feld eintragen.`}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
-                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/10 dark:text-zinc-50 dark:hover:bg-white/15"
+                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-white/10 bg-white/[0.08] px-4 py-2 text-sm font-semibold text-emerald-50 transition-colors hover:bg-white/[0.13]"
                 onClick={() => setConfirmationCategory(null)}
                 type="button"
               >
@@ -810,14 +810,14 @@ export function ScoreEntryForm({
       ) : null}
 
       {!(onlineRollMode && mode === "dice") ? (
-        <div className="fixed inset-x-0 bottom-0 z-[80] border-t border-slate-200/80 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 dark:shadow-[0_-18px_44px_rgba(0,0,0,0.45)]">
+        <div className="fixed inset-x-0 bottom-0 z-[80] border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-zinc-400">
-                <Sparkles aria-hidden="true" className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-50/60">
+                <Sparkles aria-hidden="true" className="h-3.5 w-3.5 text-brass" />
                 Auswahl
               </p>
-              <p className="truncate text-sm font-semibold text-ink dark:text-zinc-50">
+              <p className="truncate text-sm font-semibold text-white">
                 {selectedLabel
                   ? `${selectedLabel}${
                       selectedScore !== null

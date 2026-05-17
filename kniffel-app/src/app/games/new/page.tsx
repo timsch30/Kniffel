@@ -23,7 +23,7 @@ export default async function NewGamePage({ searchParams }: NewGamePageProps) {
   return (
     <>
       <DashboardBackdrop />
-      <PageContainer className="felt-ui grid min-h-[calc(100svh-5rem)] content-center" size="sm">
+      <PageContainer className="grid min-h-[calc(100svh-5rem)] content-center" size="sm">
       <Card
         className="!border-white/10 !bg-white/[0.09] p-6 text-white shadow-[0_24px_80px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:p-7"
         eyebrow="Neue Runde"
