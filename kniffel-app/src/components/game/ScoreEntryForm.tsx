@@ -18,7 +18,6 @@ import {
 import { Dice } from "@/components/game/Dice";
 import { DiceInput } from "@/components/game/DiceInput";
 import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
-import { ScoreSuggestions } from "@/components/game/ScoreSuggestions";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { scoreCategories, scoreCategoryLabels } from "@/game/scorecard";
 import {
@@ -241,6 +240,10 @@ export function ScoreEntryForm({
   }, [onlineRollMode]);
 
   async function requestMotionPermission() {
+    if (motionPermission === "granted") {
+      return;
+    }
+
     if (!window.isSecureContext) {
       setMotionPermission("needs-secure-context");
       return;
@@ -484,7 +487,7 @@ export function ScoreEntryForm({
         <section className="grid gap-5" ref={suggestionsSectionRef}>
           {onlineRollMode ? (
             <div className="grid gap-4 lg:grid-cols-[minmax(18rem,0.85fr)_minmax(22rem,1.15fr)] lg:items-start">
-              <section className="relative grid gap-4 overflow-hidden rounded-lg border border-brass/20 bg-[linear-gradient(145deg,rgba(6,78,59,0.9),rgba(2,23,19,0.96))] p-3 shadow-[0_18px_58px_rgba(0,0,0,0.26)]">
+              <section className="relative grid gap-3 overflow-hidden rounded-lg border border-brass/20 bg-[linear-gradient(145deg,rgba(6,78,59,0.9),rgba(2,23,19,0.96))] p-3 shadow-[0_18px_58px_rgba(0,0,0,0.26)]">
                 <motion.div
                   aria-hidden="true"
                   animate={
@@ -509,25 +512,23 @@ export function ScoreEntryForm({
                       Wurf {rollCount}/3
                     </p>
                   </div>
-                  <motion.p
-                    animate={
-                      shouldReduceMotion || motionPermission !== "granted"
-                        ? { opacity: 1, scale: 1 }
-                        : { opacity: [0.78, 1, 0.78], scale: [1, 1.03, 1] }
-                    }
-                    className="max-w-[10rem] truncate rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-right text-xs font-semibold text-emerald-50 shadow-sm"
-                    transition={
-                      shouldReduceMotion
-                        ? { duration: 0.01 }
-                        : { duration: 1.8, ease: "easeInOut", repeat: Infinity }
-                    }
+                  <button
+                    aria-pressed={motionPermission === "granted"}
+                    className={[
+                      "inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border px-3 py-1 text-xs font-semibold shadow-sm transition-all",
+                      motionPermission === "granted"
+                        ? "border-brass/35 bg-brass text-emerald-950 hover:bg-amber-300"
+                        : "border-white/15 bg-white/10 text-emerald-50 hover:border-white/25 hover:bg-white/15"
+                    ].join(" ")}
+                    onClick={requestMotionPermission}
+                    type="button"
                   >
-                    {motionPermissionLabel}
-                  </motion.p>
+                    Shake {motionPermission === "granted" ? "an" : "aktivieren"}
+                  </button>
                 </div>
 
-                <div className="relative rounded-lg border border-white/15 bg-black/25 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-24px_48px_rgba(0,0,0,0.18)]">
-                  <div className="grid grid-cols-5 gap-2 sm:gap-3">
+                <div className="relative rounded-lg border border-white/15 bg-black/25 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-24px_48px_rgba(0,0,0,0.18)]">
+                  <div className="grid grid-cols-5 gap-2.5 sm:gap-3">
                     {diceSlots.map((value, index) => (
                       <motion.button
                         animate={getDiceButtonAnimate(index, heldDice[index])}
@@ -540,7 +541,7 @@ export function ScoreEntryForm({
                         }
                         aria-pressed={heldDice[index]}
                         className={[
-                          "relative aspect-square rounded-xl border p-1 transition-colors focus-visible:ring-4 focus-visible:ring-brass/40 disabled:cursor-not-allowed",
+                          "relative aspect-square rounded-xl border p-0.5 transition-colors focus-visible:ring-4 focus-visible:ring-brass/40 disabled:cursor-not-allowed sm:p-1",
                           heldDice[index]
                             ? "border-brass/80 bg-amber-200/10 shadow-[0_12px_30px_rgba(244,185,66,0.24)]"
                             : "border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10",
@@ -572,40 +573,40 @@ export function ScoreEntryForm({
                   </div>
                 </div>
 
-                <div className="relative grid gap-3 rounded-lg border border-white/10 bg-white/10 p-3 text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
-                  <label className="grid gap-2 text-xs font-semibold text-emerald-50/80">
-                    <span className="flex items-center justify-between gap-3">
-                      <span className="inline-flex items-center gap-1.5 text-emerald-50">
-                        <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
-                        Shake-Empfindlichkeit
-                      </span>
-                      <span className="text-emerald-50/80">Stufe {shakeSensitivity}</span>
+                <details className="relative rounded-lg border border-white/10 bg-white/[0.07] text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                  <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-semibold text-emerald-50/75">
+                    <span className="inline-flex items-center gap-1.5">
+                      <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
+                      Shake
                     </span>
-                    <input
-                      className="w-full accent-brass"
-                      max={5}
-                      min={1}
-                      onChange={(event) => handleSensitivityChange(event.target.value)}
-                      step={1}
-                      type="range"
-                      value={shakeSensitivity}
-                    />
-                  </label>
-                  {motionPermission === "needs-permission" || motionPermission === "denied" ? (
-                    <button
-                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-brass/30 bg-brass px-3 py-2 text-sm font-semibold text-emerald-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-300"
-                      onClick={requestMotionPermission}
-                      type="button"
-                    >
-                      Schuetteln aktivieren
-                    </button>
-                  ) : null}
+                    <span className="text-emerald-50/60">Stufe {shakeSensitivity}</span>
+                  </summary>
+                  <div className="grid gap-3 border-t border-white/10 px-3 py-3">
+                    <label className="grid gap-2 text-xs font-semibold text-emerald-50/80">
+                      <span className="flex items-center justify-between gap-3">
+                        <span>Empfindlichkeit</span>
+                        <span className="text-emerald-50/80">Stufe {shakeSensitivity}</span>
+                      </span>
+                      <input
+                        className="w-full accent-brass"
+                        max={5}
+                        min={1}
+                        onChange={(event) => handleSensitivityChange(event.target.value)}
+                        step={1}
+                        type="range"
+                        value={shakeSensitivity}
+                      />
+                    </label>
+                    <p className="text-xs font-semibold text-emerald-50/65">
+                      {motionPermissionLabel}
+                    </p>
                   {motionPermissionHint ? (
                     <p className="text-xs font-medium text-emerald-50/75">
                       {motionPermissionHint}
                     </p>
                   ) : null}
-                </div>
+                  </div>
+                </details>
                 <button
                   className="relative inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-brass/40 bg-brass px-4 py-2 text-sm font-semibold text-emerald-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0"
                   disabled={rollCount >= 3 || isRolling}
@@ -686,16 +687,87 @@ export function ScoreEntryForm({
               </section>
             </div>
           ) : (
-            <DiceInput onChange={setDiceValues} values={diceValues} />
+            <div className="grid gap-4">
+              <DiceInput onChange={setDiceValues} values={diceValues} />
+
+              <section className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-3 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <h3 className="text-sm font-semibold text-white">Aktueller Block</h3>
+                  <span className="text-xs font-semibold text-emerald-50/60">
+                    {validDiceValues ? "Feld klicken" : "erst 5 Wuerfel waehlen"}
+                  </span>
+                </div>
+
+                <AnimatePresence mode="wait">
+                  {recommendedSuggestion ? (
+                    <motion.button
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      className="flex min-h-16 items-center justify-between gap-3 rounded-lg border border-brass/35 bg-brass/[0.12] px-3 py-3 text-left shadow-sm"
+                      exit={{ opacity: 0, scale: shouldReduceMotion ? 1 : 0.98, y: 0 }}
+                      initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.98, y: 6 }}
+                      key={`${diceValues.join("-")}-${recommendedSuggestion.category}`}
+                      onClick={() => {
+                        setSelectedCategory(recommendedSuggestion.category);
+                        setConfirmationCategory(recommendedSuggestion.category);
+                      }}
+                      transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.2 }}
+                      type="button"
+                      whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
+                    >
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-amber-100">
+                          <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
+                          Empfehlung
+                        </span>
+                        <span className="mt-0.5 block truncate text-sm font-semibold text-white">
+                          {recommendedSuggestion.label}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right text-sm font-semibold tabular-nums text-amber-100">
+                        {recommendedSuggestion.score}
+                        <span className="block text-[0.68rem] font-medium">
+                          {recommendedSuggestion.action === "strike" ? "streichen" : "Punkte"}
+                        </span>
+                      </span>
+                    </motion.button>
+                  ) : (
+                    <motion.div
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-lg border border-dashed border-white/10 bg-white/[0.05] px-3 py-4 text-sm font-medium text-emerald-50/65"
+                      exit={{ opacity: 0 }}
+                      initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
+                      key="real-dice-empty-recommendation"
+                      transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.16 }}
+                    >
+                      Erst 5 Wuerfel waehlen. Danach erscheint hier die beste Option.
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <motion.div
+                  animate={{ opacity: 1, y: 0 }}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 6 }}
+                  key={validDiceValues ? diceValues.join("-") : "real-empty-scorecard"}
+                  transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.18 }}
+                >
+                  <ScoreCardBlock
+                    compact
+                    onSelectCategory={(category) => {
+                      if (!validDiceValues) {
+                        return;
+                      }
+
+                      setSelectedCategory(category);
+                      setConfirmationCategory(category);
+                    }}
+                    scoreCard={scoreCard}
+                    scoreSuggestions={diceSuggestions}
+                    selectedCategory={selectedCategory}
+                  />
+                </motion.div>
+              </section>
+            </div>
           )}
-          {!onlineRollMode ? (
-            <ScoreSuggestions
-              diceValues={diceValues}
-              onSelect={setSelectedCategory}
-              scoreCard={scoreCard}
-              selectedCategory={selectedCategory}
-            />
-          ) : null}
         </section>
       ) : (
         <section className="grid gap-4">

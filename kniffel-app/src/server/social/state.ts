@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/server/auth/session";
 import {
+  calculateUpperBonus,
   calculateTotalScore,
   scoreCategories,
   scoreCategoryLabels
@@ -139,7 +140,8 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
           categoryScores: getCategoryScores(scoreCard),
           kniffelCount: getKniffelCount(scoreCard),
           playerId: player.userId,
-          score: scoreCard.total ?? calculateTotalScore(scoreCard)
+          score: scoreCard.total ?? calculateTotalScore(scoreCard),
+          upperBonus: scoreCard.upperBonus ?? calculateUpperBonus(scoreCard)
         }
       ];
     });

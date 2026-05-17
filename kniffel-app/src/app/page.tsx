@@ -1,22 +1,16 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { LogIn, UserPlus } from "lucide-react";
 
 import { HomeTableScene } from "@/components/home/HomeTableScene";
+import { HomeSessionRedirect } from "@/components/home/HomeSessionRedirect";
 import { buttonVariants } from "@/components/ui/Button";
-import { getCurrentUser } from "@/server/auth/session";
 
 export default async function HomePage() {
-  const user = await getCurrentUser();
-
-  if (user) {
-    redirect("/dashboard");
-  }
-
   return (
     <main className="relative min-h-screen overflow-hidden text-white">
       <HomeTableScene />
+      <HomeSessionRedirect />
       <section className="relative z-10 grid min-h-screen place-items-center px-4 py-10">
         <div className="grid max-w-3xl gap-7 text-center">
           <h1 className="text-balance text-5xl font-semibold tracking-tight drop-shadow-[0_12px_42px_rgba(0,0,0,0.48)] sm:text-7xl">

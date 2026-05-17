@@ -10,6 +10,7 @@ import type {
   PlayerStats,
   RivalStats
 } from "@/social/types";
+import { achievementDefinitions } from "@/social/achievements";
 
 function round(value: number, digits = 0): number {
   const factor = 10 ** digits;
@@ -90,19 +91,35 @@ export function calculatePlayerStats(games: Game[], playerId: PlayerId): PlayerS
   const gamesWon = playerGames.filter((game) => game.winnerId === playerId).length;
   const totalPoints = results.reduce((sum, result) => sum + result.score, 0);
   const totalKniffel = results.reduce((sum, result) => sum + result.kniffelCount, 0);
+  const bestGameKniffel = Math.max(0, ...results.map((result) => result.kniffelCount));
+  const fullHouseCount = results.filter(
+    (result) => (result.categoryScores["Full House"] ?? 0) > 0
+  ).length;
+  const straightBuilderGames = results.filter(
+    (result) =>
+      (result.categoryScores["Kleine Strasse"] ?? 0) > 0 &&
+      (result.categoryScores["Grosse Strasse"] ?? 0) > 0
+  ).length;
   const { current, longest } = calculateWinStreaks(games, playerId);
   const { bestCategory, favoriteCategory } = calculateCategoryStats(games, playerId);
 
   return {
     averagePoints: gamesPlayed > 0 ? round(totalPoints / gamesPlayed, 1) : 0,
     bestCategory,
+    bestGameKniffel,
     currentWinStreak: current,
+    doubleKniffelGames: results.filter((result) => result.kniffelCount >= 2).length,
+    exactScore375Games: results.filter((result) => result.score === 375).length,
     favoriteCategory,
+    fullHouseCount,
     gamesPlayed,
     gamesWon,
     highestScore: Math.max(0, ...results.map((result) => result.score)),
     kniffelPerGame: gamesPlayed > 0 ? round(totalKniffel / gamesPlayed, 2) : 0,
     longestWinStreak: longest,
+    perfectUpperBonusGames: results.filter((result) => (result.upperBonus ?? 0) >= 35).length,
+    straightBuilderGames,
+    tripleKniffelGames: results.filter((result) => result.kniffelCount >= 3).length,
     totalKniffel,
     totalPoints,
     winRate: gamesPlayed > 0 ? round((gamesWon / gamesPlayed) * 100) : 0
@@ -248,62 +265,15 @@ export function calculateRivalStats(games: Game[], user: Player, friends: Friend
 }
 
 export function calculateAchievements(stats: PlayerStats): Achievement[] {
-  const definitions = [
-    {
-      description: "Gewinne deine erste Runde.",
-      id: "first-win",
-      label: "Erster Sieg",
-      rarity: "common" as const,
-      target: 1,
-      value: stats.gamesWon
-    },
-    {
-      description: "Wuerfle deinen ersten Kniffel.",
-      id: "first-kniffel",
-      label: "Erster Kniffel",
-      rarity: "common" as const,
-      target: 1,
-      value: stats.totalKniffel
-    },
-    {
-      description: "Bleib dran ueber 10 Spiele.",
-      id: "ten-games",
-      label: "10 Spiele gespielt",
-      rarity: "rare" as const,
-      target: 10,
-      value: stats.gamesPlayed
-    },
-    {
-      description: "Sammle 10 Siege.",
-      id: "ten-wins",
-      label: "10 Siege",
-      rarity: "rare" as const,
-      target: 10,
-      value: stats.gamesWon
-    },
-    {
-      description: "Erreiche mindestens 300 Punkte.",
-      id: "score-300",
-      label: "300 Punkte geknackt",
-      rarity: "epic" as const,
-      target: 300,
-      value: stats.highestScore
-    },
-    {
-      description: "Gewinne 3 Spiele in Folge.",
-      id: "three-streak",
-      label: "3 Siege in Folge",
-      rarity: "epic" as const,
-      target: 3,
-      value: stats.longestWinStreak
-    }
-  ];
+  return achievementDefinitions.map((definition) => {
+    const value = definition.getValue(stats);
 
-  return definitions.map(({ value, ...definition }) => ({
-    ...definition,
-    earned: value >= definition.target,
-    progress: Math.min(value, definition.target)
-  }));
+    return {
+      ...definition,
+      earned: value >= definition.target,
+      progress: Math.min(value, definition.target)
+    };
+  });
 }
 
 export function getRecentGames(games: Game[], limit = 5): Game[] {
