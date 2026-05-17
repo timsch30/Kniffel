@@ -12,18 +12,18 @@ export function Card({ children, className, eyebrow, title, ...props }: CardProp
   return (
     <div
       className={cn(
-        "rounded-lg border border-slate-200/75 bg-white/90 p-5 shadow-card backdrop-blur-sm transition-colors dark:border-white/10 dark:bg-zinc-900/75 dark:shadow-card-dark",
+        "rounded-lg border border-white/10 bg-white/[0.08] p-5 text-white shadow-[0_18px_58px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-colors",
         className
       )}
       {...props}
     >
       {eyebrow ? (
-        <p className="mb-1 text-xs font-bold uppercase tracking-wide text-felt dark:text-emerald-300">
+        <p className="mb-1 text-xs font-bold uppercase tracking-wide text-brass">
           {eyebrow}
         </p>
       ) : null}
       {title ? (
-        <h2 className="mb-4 text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+        <h2 className="mb-4 text-lg font-semibold tracking-tight text-white">
           {title}
         </h2>
       ) : null}

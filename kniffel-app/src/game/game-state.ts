@@ -35,6 +35,16 @@ export function isUserTurn(state: GameState, currentUserId: string): boolean {
   return Boolean(state.status === "ACTIVE" && player && state.currentPlayerId === player.id);
 }
 
+export function canUserManageCurrentTurn(state: GameState, currentUserId: string): boolean {
+  const currentPlayer = getCurrentPlayer(state);
+
+  return Boolean(
+    state.status === "ACTIVE" &&
+      currentPlayer &&
+      (currentPlayer.userId === currentUserId || state.ownerId === currentUserId)
+  );
+}
+
 export function getNextPlayer(state: GameState): GameStatePlayer | null {
   if (!state.currentPlayerId || state.players.length === 0) {
     return null;

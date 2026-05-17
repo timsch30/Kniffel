@@ -18,6 +18,7 @@ import { requireCurrentUser } from "@/server/auth/session";
 import { generateUniqueInviteCode } from "@/server/game/invite-code";
 
 const MAX_CREATE_GAME_ATTEMPTS = 5;
+const MAX_PLAYER_DISPLAY_NAME_LENGTH = 30;
 
 function readString(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -33,6 +34,21 @@ function redirectWithError(path: string, error: string): never {
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function normalizeDisplayName(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function createDefaultGuestName(players: Array<{ displayName: string; userId: string | null }>) {
+  const existingNames = new Set(players.map((player) => player.displayName.toLowerCase()));
+  let guestNumber = players.filter((player) => player.userId === null).length + 1;
+
+  while (existingNames.has(`spieler ${guestNumber}`)) {
+    guestNumber += 1;
+  }
+
+  return `Spieler ${guestNumber}`;
 }
 
 function orderedFriendshipPair(firstUserId: string, secondUserId: string) {
@@ -288,6 +304,223 @@ export async function inviteFriendToGameAction(formData: FormData): Promise<void
     }
 
     const message = error instanceof Error ? error.message : "Einladung konnte nicht gesendet werden.";
+
+    redirectWithError(errorPath, message);
+  }
+
+  revalidatePath(errorPath);
+  redirect(errorPath);
+}
+
+export async function addGuestPlayerAction(gameId: string): Promise<void> {
+  const user = await requireCurrentUser();
+  const errorPath = `/games/${gameId}`;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            orderBy: {
+              position: "asc"
+            },
+            select: {
+              displayName: true,
+              position: true,
+              userId: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.ownerId !== user.id) {
+        throw new Error("Nur der Owner kann Gastspieler hinzufuegen.");
+      }
+
+      if (game.status !== "LOBBY") {
+        throw new Error("Gastspieler koennen nur in der Lobby hinzugefuegt werden.");
+      }
+
+      const nextPosition =
+        game.players.reduce((highestPosition, player) => Math.max(highestPosition, player.position), 0) +
+        1;
+      const gamePlayer = await tx.gamePlayer.create({
+        data: {
+          displayName: createDefaultGuestName(game.players),
+          gameId: game.id,
+          position: nextPosition
+        },
+        select: {
+          id: true
+        }
+      });
+
+      await tx.scoreCard.create({
+        data: {
+          gameId: game.id,
+          playerId: gamePlayer.id
+        }
+      });
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Gastspieler konnte nicht hinzugefuegt werden.";
+
+    redirectWithError(errorPath, message);
+  }
+
+  revalidatePath(errorPath);
+  redirect(errorPath);
+}
+
+export async function renamePlayerAction(
+  gameId: string,
+  playerId: string,
+  formData: FormData
+): Promise<void> {
+  const user = await requireCurrentUser();
+  const errorPath = `/games/${gameId}`;
+  const displayName = normalizeDisplayName(readString(formData, "displayName"));
+
+  if (!displayName) {
+    redirectWithError(errorPath, "Spielername darf nicht leer sein.");
+  }
+
+  if (displayName.length > MAX_PLAYER_DISPLAY_NAME_LENGTH) {
+    redirectWithError(
+      errorPath,
+      `Spielername darf maximal ${MAX_PLAYER_DISPLAY_NAME_LENGTH} Zeichen lang sein.`
+    );
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            select: {
+              id: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.ownerId !== user.id) {
+        throw new Error("Nur der Owner kann Spielernamen aendern.");
+      }
+
+      if (!game.players.some((player) => player.id === playerId)) {
+        throw new Error("Spieler wurde nicht gefunden.");
+      }
+
+      await tx.gamePlayer.update({
+        data: {
+          displayName
+        },
+        where: {
+          id: playerId
+        }
+      });
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Spielername konnte nicht geaendert werden.";
+
+    redirectWithError(errorPath, message);
+  }
+
+  revalidatePath(errorPath);
+  redirect(errorPath);
+}
+
+export async function removeGuestPlayerAction(gameId: string, playerId: string): Promise<void> {
+  const user = await requireCurrentUser();
+  const errorPath = `/games/${gameId}`;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            orderBy: {
+              position: "asc"
+            },
+            select: {
+              id: true,
+              position: true,
+              userId: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.ownerId !== user.id) {
+        throw new Error("Nur der Owner kann Gastspieler entfernen.");
+      }
+
+      if (game.status !== "LOBBY") {
+        throw new Error("Gastspieler koennen nur in der Lobby entfernt werden.");
+      }
+
+      const player = game.players.find((entry) => entry.id === playerId);
+
+      if (!player) {
+        throw new Error("Spieler wurde nicht gefunden.");
+      }
+
+      if (player.userId !== null) {
+        throw new Error("Nur Gastspieler koennen entfernt werden.");
+      }
+
+      await tx.gamePlayer.delete({
+        where: {
+          id: player.id
+        }
+      });
+
+      const remainingPlayers = game.players.filter((entry) => entry.id !== player.id);
+
+      for (const [index, entry] of remainingPlayers.entries()) {
+        const position = index + 1;
+
+        if (entry.position === position) {
+          continue;
+        }
+
+        await tx.gamePlayer.update({
+          data: {
+            position
+          },
+          where: {
+            id: entry.id
+          }
+        });
+      }
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Gastspieler konnte nicht entfernt werden.";
 
     redirectWithError(errorPath, message);
   }
@@ -797,7 +1030,7 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
         throw new Error("Aktueller Spieler fehlt.");
       }
 
-      if (currentPlayer.userId !== user.id) {
+      if (currentPlayer.userId !== user.id && game.ownerId !== user.id) {
         throw new Error("Du bist nicht am Zug.");
       }
 

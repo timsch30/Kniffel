@@ -6,17 +6,17 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
 
 const baseStyles =
-  "inline-flex items-center justify-center gap-2 rounded-lg border text-sm font-semibold tracking-normal transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-felt focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 disabled:active:scale-100 dark:focus-visible:ring-offset-zinc-950";
+  "inline-flex items-center justify-center gap-2 rounded-lg border text-sm font-semibold tracking-normal transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-brass focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-950 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 disabled:active:scale-100";
 
 const variantStyles: Record<ButtonVariant, string> = {
   danger:
-    "border-red-500/20 bg-red-600 text-white shadow-sm shadow-red-950/10 hover:bg-red-700 dark:border-red-400/20 dark:bg-red-500 dark:hover:bg-red-400",
+    "border-red-300/20 bg-red-500 text-white shadow-sm shadow-red-950/20 hover:bg-red-400",
   ghost:
-    "border-transparent bg-transparent text-slate-700 hover:bg-slate-950/5 hover:text-ink dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white",
+    "border-transparent bg-transparent text-emerald-50/80 hover:bg-white/10 hover:text-white",
   primary:
-    "border-transparent bg-ink text-white shadow-sm shadow-slate-950/10 hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200",
+    "border-brass/40 bg-brass text-emerald-950 shadow-sm shadow-black/20 hover:-translate-y-0.5 hover:bg-amber-300 hover:shadow-md",
   secondary:
-    "border-slate-200/80 bg-white/80 text-ink shadow-sm hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:hover:border-white/20 dark:hover:bg-white/10"
+    "border-white/10 bg-white/[0.08] text-emerald-50 shadow-sm hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.13] hover:shadow-md"
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

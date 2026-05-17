@@ -33,22 +33,11 @@ export function HeaderContent({
     return null;
   }
 
-  const feltHeader =
-    pathname === "/dashboard" ||
-    pathname === "/social" ||
-    pathname === "/games/new" ||
-    pathname === "/join" ||
-    pathname.startsWith("/join/") ||
-    pathname === "/login" ||
-    pathname === "/register";
-
   return (
     <header
       className={cn(
         "sticky top-0 z-30 border-b backdrop-blur-xl",
-        feltHeader
-          ? "border-white/10 bg-emerald-950/[0.82]"
-          : "border-slate-200/70 bg-white/80 dark:border-white/10 dark:bg-zinc-950/75",
+        "border-white/10 bg-emerald-950/[0.82]",
         className
       )}
     >
@@ -57,18 +46,14 @@ export function HeaderContent({
           aria-label="Kniffel Online Startseite"
           className={cn(
             "group inline-flex min-h-10 items-center gap-2 rounded-lg text-sm font-semibold outline-none transition-colors",
-            feltHeader
-              ? "text-white hover:text-amber-100"
-              : "text-ink hover:text-felt dark:text-zinc-50 dark:hover:text-emerald-200"
+            "text-white hover:text-amber-100"
           )}
           href="/"
         >
           <span
             className={cn(
               "grid h-8 w-8 place-items-center rounded-lg border shadow-sm transition-transform group-hover:-rotate-6",
-              feltHeader
-                ? "border-white/10 bg-white/10 text-amber-50"
-                : "border-slate-200 bg-white dark:border-white/10 dark:bg-white/10"
+              "border-white/10 bg-white/10 text-amber-50"
             )}
           >
             <Dice5 aria-hidden="true" className="h-4 w-4" />
@@ -82,30 +67,21 @@ export function HeaderContent({
               className="col-span-2 row-start-2 flex flex-wrap items-center gap-1.5 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-end"
             >
               <Link
-                className={cn(
-                  buttonVariants("ghost", "sm"),
-                  feltHeader ? "text-emerald-50 hover:bg-white/10 hover:text-white" : null
-                )}
+                className={buttonVariants("ghost", "sm")}
                 href="/dashboard"
               >
                 <LayoutDashboard aria-hidden="true" className="h-4 w-4" />
                 Dashboard
               </Link>
               <Link
-                className={cn(
-                  buttonVariants("ghost", "sm"),
-                  feltHeader ? "text-emerald-50 hover:bg-white/10 hover:text-white" : null
-                )}
+                className={buttonVariants("ghost", "sm")}
                 href="/social"
               >
                 <UsersRound aria-hidden="true" className="h-4 w-4" />
                 Social
               </Link>
               <Link
-                className={cn(
-                  buttonVariants("secondary", "sm"),
-                  feltHeader ? "border-white/10 bg-white/10 text-white hover:bg-white/15" : null
-                )}
+                className={buttonVariants("secondary", "sm")}
                 href="/games/new"
               >
                 <Plus aria-hidden="true" className="h-4 w-4" />
@@ -118,8 +94,7 @@ export function HeaderContent({
                   aria-label="Abmelden"
                   className={cn(
                     buttonVariants("ghost", "sm"),
-                    "w-9 px-0 sm:w-auto sm:px-3",
-                    feltHeader ? "text-emerald-50 hover:bg-white/10 hover:text-white" : null
+                    "w-9 px-0 sm:w-auto sm:px-3"
                   )}
                   title="Abmelden"
                   type="submit"

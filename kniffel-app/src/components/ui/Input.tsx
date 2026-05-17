@@ -13,20 +13,20 @@ export function Input({ className, description, id, label, ...props }: InputProp
 
   return (
     <div className="grid gap-2">
-      <label className="text-sm font-medium text-slate-800 dark:text-zinc-200" htmlFor={inputId}>
+      <label className="text-sm font-medium text-emerald-50/90" htmlFor={inputId}>
         {label}
       </label>
       <input
         aria-describedby={descriptionId}
         id={inputId}
         className={cn(
-          "min-h-11 rounded-lg border border-slate-200 bg-white/90 px-3.5 py-2.5 text-base text-ink shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-felt focus:ring-4 focus:ring-felt/20 dark:border-white/10 dark:bg-white/5 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:hover:border-white/20 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/10",
+          "min-h-11 rounded-lg border border-white/10 bg-black/15 px-3.5 py-2.5 text-base text-white shadow-sm outline-none transition-all duration-200 placeholder:text-emerald-50/40 hover:border-white/20 focus:border-brass/70 focus:ring-4 focus:ring-brass/15",
           className
         )}
         {...props}
       />
       {description ? (
-        <p className="text-xs leading-5 text-slate-500 dark:text-zinc-400" id={descriptionId}>
+        <p className="text-xs leading-5 text-emerald-50/70" id={descriptionId}>
           {description}
         </p>
       ) : null}
