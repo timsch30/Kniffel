@@ -13,6 +13,7 @@ import {
   UsersRound
 } from "lucide-react";
 
+import { AchievementUnlockNotifications } from "@/components/social/AchievementUnlockNotifications";
 import { AchievementsPanel } from "@/components/social/AchievementsPanel";
 import { FriendList } from "@/components/social/FriendList";
 import { HeadToHeadCard } from "@/components/social/HeadToHeadCard";
@@ -116,7 +117,8 @@ export function SocialDashboard({
   const getFriendStats = (friend: Friend) => calculatePlayerStats(games, friend.id);
 
   return (
-    <div className="grid gap-5 text-white">
+    <div className="grid min-w-0 gap-5 overflow-x-hidden text-white">
+      <AchievementUnlockNotifications achievements={achievements} userId={user.id} />
       {error ? <Alert variant="danger">{error}</Alert> : null}
 
       <section className="grid gap-4">
@@ -228,17 +230,17 @@ export function SocialDashboard({
       {activeTab === "profile" ? (
         <motion.section
           animate={{ opacity: 1, y: 0 }}
-          className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]"
+          className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]"
           initial={{ opacity: 0, y: 8 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             <PlayerProfileCard player={user} stats={userStats} />
-            <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+            <Card className="min-w-0 !border-white/10 !bg-white/[0.09] p-3 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:p-4">
               <h2 className="text-lg font-semibold tracking-tight text-white">
                 Kniffel Stats
               </h2>
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:gap-3">
                 <MetricTile label="Kniffel gesamt" value={userStats.totalKniffel} />
                 <MetricTile label="Kniffel pro Spiel" value={userStats.kniffelPerGame} />
                 <MetricTile label="Haeufigste Kategorie" value={userStats.favoriteCategory} />
@@ -246,8 +248,8 @@ export function SocialDashboard({
               </div>
             </Card>
           </div>
-          <div className="grid gap-4">
-            <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+          <div className="grid min-w-0 gap-4">
+            <Card className="min-w-0 !border-white/10 !bg-white/[0.09] p-3 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:p-4">
               <h2 className="text-lg font-semibold tracking-tight text-white">
                 Freundesvergleich
               </h2>
@@ -262,7 +264,7 @@ export function SocialDashboard({
 
                   return (
                     <button
-                      className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:bg-white/10"
+                      className="flex min-h-14 min-w-0 items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:bg-white/10"
                       key={friend.id}
                       onClick={() => {
                         setSelectedFriendId(friend.id);
@@ -270,15 +272,15 @@ export function SocialDashboard({
                       }}
                       type="button"
                     >
-                      <span>
-                        <span className="block text-sm font-semibold text-white">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-white">
                           {friend.name}
                         </span>
-                        <span className="text-xs text-emerald-50/65">
+                        <span className="block truncate text-xs text-emerald-50/65">
                           {stats.gamesWon} Siege / {stats.averagePoints} Schnitt
                         </span>
                       </span>
-                      <span className="text-xs font-semibold text-amber-100">
+                      <span className="shrink-0 text-xs font-semibold text-amber-100">
                         Oeffnen
                       </span>
                     </button>

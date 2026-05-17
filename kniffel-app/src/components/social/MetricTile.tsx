@@ -13,15 +13,17 @@ export function MetricTile({ className, icon: Icon, label, value }: MetricTilePr
   return (
     <div
       className={cn(
-        "rounded-lg border border-white/10 bg-black/15 px-3 py-3",
+        "min-w-0 rounded-lg border border-white/10 bg-black/15 px-3 py-3",
         className
       )}
     >
-      <div className="mb-2 flex items-center justify-between gap-2 text-emerald-50/70">
-        <p className="text-xs font-medium">{label}</p>
+      <div className="mb-2 flex min-w-0 items-center justify-between gap-2 text-emerald-50/70">
+        <p className="min-w-0 truncate text-xs font-medium">{label}</p>
         {Icon ? <Icon aria-hidden="true" className="h-3.5 w-3.5" /> : null}
       </div>
-      <p className="text-xl font-semibold tracking-tight text-white">{value}</p>
+      <p className="min-w-0 truncate text-lg font-semibold tracking-tight text-white sm:text-xl">
+        {value}
+      </p>
     </div>
   );
 }
