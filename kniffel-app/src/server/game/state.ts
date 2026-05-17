@@ -1,6 +1,7 @@
 import { normalizeStruckCategories, scoreCategories } from "@/game/scorecard";
 import type { GameInviteFriend, GameState } from "@/game/state";
 import { prisma } from "@/lib/prisma";
+import { expireInactiveActiveGame, isActiveGameExpired } from "@/server/game/expiration";
 
 function normalizeDiceValues(value: unknown): number[] {
   if (!Array.isArray(value)) {
@@ -10,6 +11,14 @@ function normalizeDiceValues(value: unknown): number[] {
   return value
     .map((entry) => Number(entry))
     .filter((entry) => Number.isInteger(entry) && entry >= 1 && entry <= 6);
+}
+
+function isCompleteScoreCard(
+  scoreCard: Partial<Record<(typeof scoreCategories)[number], number | null>>
+): boolean {
+  return scoreCategories.every(
+    (category) => scoreCard[category] !== null && scoreCard[category] !== undefined
+  );
 }
 
 async function getFriendInvites(gameId: string, currentUserId: string): Promise<GameInviteFriend[]> {
@@ -151,6 +160,12 @@ export async function getGameState(
     return null;
   }
 
+  const expired = game.status === "ACTIVE" && isActiveGameExpired(game.updatedAt);
+
+  if (expired) {
+    await expireInactiveActiveGame(game.id);
+  }
+
   const scoreCards = game.scoreCards.map((scoreCard) => {
     const normalizedScoreCard = Object.fromEntries(
       scoreCategories.map((category) => [category, scoreCard[category] ?? null])
@@ -165,14 +180,16 @@ export async function getGameState(
       upperBonus: scoreCard.upperBonus
     };
   });
-  const currentPlayer = game.players.find((player) => player.id === game.currentPlayerId);
+  const status = expired ? "FINISHED" : game.status;
+  const currentPlayerId = expired ? null : game.currentPlayerId;
+  const currentPlayer = game.players.find((player) => player.id === currentPlayerId);
   const ranking = game.players
     .map((player) => {
       const scoreCard = scoreCards.find((card) => card.playerId === player.id);
 
       return {
         displayName: player.displayName,
-        isCurrentPlayer: player.id === game.currentPlayerId,
+        isCurrentPlayer: player.id === currentPlayerId,
         playerId: player.id,
         position: player.position,
         total: scoreCard?.total ?? 0
@@ -184,7 +201,7 @@ export async function getGameState(
       rank: index + 1
     }));
   const winner =
-    game.status === "FINISHED" && ranking[0]
+    status === "FINISHED" && scoreCards.every(isCompleteScoreCard) && ranking[0]
       ? {
           displayName: ranking[0].displayName,
           playerId: ranking[0].playerId,
@@ -201,12 +218,12 @@ export async function getGameState(
     : null;
   const currentUserIsPlayer = game.players.some((player) => player.userId === currentUserId);
   const friendInvites =
-    currentUserIsPlayer && game.status === "LOBBY"
+    currentUserIsPlayer && status === "LOBBY"
       ? await getFriendInvites(game.id, currentUserId)
       : [];
 
   return {
-    currentPlayerId: game.currentPlayerId,
+    currentPlayerId,
     currentPlayerName: currentPlayer?.displayName ?? null,
     friendInvites,
     gameId: game.id,
@@ -218,7 +235,7 @@ export async function getGameState(
     ranking,
     roundNumber: game.roundNumber,
     scoreCards,
-    status: game.status,
+    status,
     winner
   };
 }

@@ -20,6 +20,8 @@ export type ScoreSuggestion = {
   used: boolean;
 };
 
+type GamePhase = "early" | "middle" | "late";
+
 function sumDice(dice: number[]): number {
   return dice.reduce((sum, value) => sum + value, 0);
 }
@@ -71,8 +73,45 @@ function getUpperScore(scoreCard: ScoreCard): number {
   return upperScoreCategories.reduce((sum, category) => sum + (scoreCard[category] ?? 0), 0);
 }
 
+function getFilledCategoryCount(scoreCard: ScoreCard): number {
+  return scoreCategories.filter((category) => isCategoryUsed(scoreCard, category)).length;
+}
+
+function getGamePhase(scoreCard: ScoreCard): GamePhase {
+  const filledCount = getFilledCategoryCount(scoreCard);
+
+  if (filledCount >= 9) {
+    return "late";
+  }
+
+  if (filledCount >= 5) {
+    return "middle";
+  }
+
+  return "early";
+}
+
 function getUpperCategoryTarget(category: (typeof upperScoreCategories)[number]): number {
   return upperCategoryTargets[category] * 3;
+}
+
+function getOpenUpperCategories(scoreCard: ScoreCard): (typeof upperScoreCategories)[number][] {
+  return upperScoreCategories.filter((category) => !isCategoryUsed(scoreCard, category));
+}
+
+function getPlannedOpenUpperTarget(scoreCard: ScoreCard): number {
+  return getOpenUpperCategories(scoreCard).reduce(
+    (sum, category) => sum + getUpperCategoryTarget(category),
+    0
+  );
+}
+
+function getUpperBonusPressure(scoreCard: ScoreCard): number {
+  return Math.max(0, 63 - getUpperScore(scoreCard) - getPlannedOpenUpperTarget(scoreCard));
+}
+
+function isUpperBonusOnTrack(scoreCard: ScoreCard): boolean {
+  return getUpperScore(scoreCard) + getPlannedOpenUpperTarget(scoreCard) >= 63;
 }
 
 function calculateUpperBonusPriority(
@@ -81,27 +120,25 @@ function calculateUpperBonusPriority(
   category: (typeof upperScoreCategories)[number],
   score: number
 ): number {
-  const upperScore = getUpperScore(scoreCard);
-  const openUpperCategories = upperScoreCategories.filter(
-    (upperCategory) => !isCategoryUsed(scoreCard, upperCategory)
-  );
-  const remainingTarget = Math.max(0, 63 - upperScore);
-  const plannedOpenTarget = openUpperCategories.reduce(
-    (sum, upperCategory) => sum + getUpperCategoryTarget(upperCategory),
-    0
-  );
   const categoryTarget = getUpperCategoryTarget(category);
   const targetContribution = score - categoryTarget;
-  const bonusPressure = Math.max(0, remainingTarget - plannedOpenTarget);
+  const bonusPressure = getUpperBonusPressure(scoreCard);
   const upperCount = getMatchingUpperCount(category, diceValues);
-  const basePriority = upperCount >= 3 ? 820 : upperCount === 2 ? 180 : 70;
+  const gamePhase = getGamePhase(scoreCard);
+  const basePriority = upperCount >= 4 ? 760 : upperCount === 3 ? 700 : upperCount === 2 ? 180 : 70;
+  const phaseBoost =
+    upperCount >= 3 ? (gamePhase === "early" ? 260 : gamePhase === "middle" ? 90 : 0) : 0;
+  const safeBonusDiscount =
+    upperCount >= 3 && gamePhase !== "early" && isUpperBonusOnTrack(scoreCard) ? 320 : 0;
 
   return (
     basePriority +
     upperCount * 70 +
     Math.max(0, targetContribution) * 16 -
     Math.max(0, -targetContribution) * 24 +
-    bonusPressure * 10 +
+    bonusPressure * 80 +
+    phaseBoost -
+    safeBonusDiscount +
     upperCategoryTargets[category]
   );
 }
@@ -245,6 +282,47 @@ export function calculateCategoryPriority(category: ScoreCategory): number {
   return priorities[category] ?? 0;
 }
 
+function getStrikeProtection(category: ScoreCategory, gamePhase: GamePhase): number {
+  const earlyProtection: Record<ScoreCategory, number> = {
+    chance: 420,
+    fives: 90,
+    fourOfAKind: 170,
+    fours: 70,
+    fullHouse: 170,
+    kniffel: 430,
+    largeStraight: 400,
+    ones: 0,
+    sixes: 110,
+    smallStraight: 140,
+    threeOfAKind: 70,
+    threes: 40,
+    twos: 20
+  };
+  const protection = earlyProtection[category];
+
+  if (gamePhase === "late") {
+    return Math.max(0, protection - 260);
+  }
+
+  if (gamePhase === "middle") {
+    return Math.max(0, protection - 100);
+  }
+
+  return protection;
+}
+
+function calculateStrikePriority(
+  scoreCard: ScoreCard,
+  category: ScoreCategory,
+  badRoll: boolean
+): number {
+  const gamePhase = getGamePhase(scoreCard);
+  const protection = getStrikeProtection(category, gamePhase);
+  const basePriority = badRoll ? 130 : -110;
+
+  return basePriority - protection + calculateCategoryPriority(category);
+}
+
 function hasOpenUpperTriple(
   scoreCard: ScoreCard,
   diceValues: number[],
@@ -287,15 +365,7 @@ function calculateSuggestionPriority(
   const badRoll = !hasMeaningfulOpenScore(scoreCard, diceValues, scores) && scores.chance < 20;
 
   if (score === 0) {
-    if (badRoll && category === "largeStraight") {
-      return 360;
-    }
-
-    if (badRoll && category === "kniffel") {
-      return 340;
-    }
-
-    return -100 + calculateCategoryPriority(category);
+    return calculateStrikePriority(scoreCard, category, badRoll);
   }
 
   if (category === "kniffel") {
@@ -315,6 +385,18 @@ function calculateSuggestionPriority(
   }
 
   if (category === "fourOfAKind") {
+    if (hasOpenUpperTriple(scoreCard, diceValues, category)) {
+      const gamePhase = getGamePhase(scoreCard);
+
+      if (gamePhase === "early" || getUpperBonusPressure(scoreCard) > 0) {
+        return 560 + score;
+      }
+
+      if (isUpperBonusOnTrack(scoreCard)) {
+        return 930 + score;
+      }
+    }
+
     return 700 + score;
   }
 
@@ -331,7 +413,17 @@ function calculateSuggestionPriority(
   }
 
   if (category === "chance") {
-    return score >= 24 ? 260 + score : 80 + score;
+    const gamePhase = getGamePhase(scoreCard);
+
+    if (gamePhase === "late") {
+      return score >= 20 ? 260 + score : 140 + score;
+    }
+
+    if (gamePhase === "middle") {
+      return score >= 24 ? 230 + score : 50 + score;
+    }
+
+    return score >= 24 ? 220 + score : 20 + score;
   }
 
   return score + calculateCategoryPriority(category);

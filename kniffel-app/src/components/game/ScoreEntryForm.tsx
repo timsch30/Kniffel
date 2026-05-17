@@ -425,9 +425,12 @@ export function ScoreEntryForm({
         : null;
   const selectedIsStrike = selectedScore === 0;
   const validDiceValues = mode === "dice" && isValidDiceValues(diceValues);
-  const diceSuggestions = validDiceValues ? getAvailableScoreSuggestions(scoreCard, diceValues) : undefined;
+  const canShowDiceRecommendation = validDiceValues && (!onlineRollMode || rollCount >= 3);
+  const diceSuggestions = canShowDiceRecommendation
+    ? getAvailableScoreSuggestions(scoreCard, diceValues)
+    : undefined;
   const recommendedSuggestion =
-    validDiceValues ? getRankedScoreSuggestions(scoreCard, diceValues)[0] : undefined;
+    canShowDiceRecommendation ? getRankedScoreSuggestions(scoreCard, diceValues)[0] : undefined;
   const confirmationScore =
     confirmationCategory && validDiceValues
       ? calculateScoreForCategory(confirmationCategory, diceValues)

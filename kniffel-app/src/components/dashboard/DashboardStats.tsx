@@ -13,6 +13,7 @@ const FRIEND_PRESENCE_INTERVAL_MS = 10_000;
 type PresenceFriendsResponse = {
   friends: {
     id: string;
+    inGame: boolean;
     lastSeenAt: string;
     username: string;
   }[];

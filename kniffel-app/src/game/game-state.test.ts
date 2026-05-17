@@ -5,6 +5,7 @@ import {
   getVictoryCelebrationStorageKey,
   isCurrentUserWinner
 } from "./victory-celebration.ts";
+import { canUserManageCurrentTurn } from "@/game/game-state";
 import type { GameState } from "@/game/state";
 
 const finishedState: GameState = {
@@ -49,5 +50,45 @@ describe("winner celebration helpers", () => {
 
     strictEqual(isCurrentUserWinner(activeState, "user-1"), false);
     strictEqual(getVictoryCelebrationStorageKey(activeState, "user-1"), null);
+  });
+});
+
+describe("turn permissions", () => {
+  it("lets users manage their own turn", () => {
+    const activeState = {
+      ...finishedState,
+      currentPlayerId: "player-2",
+      status: "ACTIVE",
+      winner: null
+    };
+
+    strictEqual(canUserManageCurrentTurn(activeState, "user-2"), true);
+  });
+
+  it("lets the owner manage guest turns only", () => {
+    const activeState = {
+      ...finishedState,
+      currentPlayerId: "player-3",
+      players: [
+        ...finishedState.players,
+        { displayName: "Gast", id: "player-3", position: 3, userId: null }
+      ],
+      status: "ACTIVE",
+      winner: null
+    };
+
+    strictEqual(canUserManageCurrentTurn(activeState, "user-1"), true);
+    strictEqual(canUserManageCurrentTurn(activeState, "user-2"), false);
+  });
+
+  it("does not let the owner manage another real user's turn", () => {
+    const activeState = {
+      ...finishedState,
+      currentPlayerId: "player-2",
+      status: "ACTIVE",
+      winner: null
+    };
+
+    strictEqual(canUserManageCurrentTurn(activeState, "user-1"), false);
   });
 });
