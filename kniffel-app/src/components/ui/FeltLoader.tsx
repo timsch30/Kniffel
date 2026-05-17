@@ -9,20 +9,29 @@ import { cn } from "@/lib/cn";
 type FeltLoaderProps = {
   className?: string;
   label?: string;
-  variant?: "compact" | "dashboard" | "game";
+  variant?: "compact" | "dashboard" | "game" | "overlay";
 };
 
-function MiniDie({ delay = 0 }: { delay?: number }) {
+function MiniDie({ delay = 0, large = false }: { delay?: number; large?: boolean }) {
   const shouldReduceMotion = useReducedMotion();
 
   return (
     <motion.span
-      animate={shouldReduceMotion ? { opacity: 0.82 } : { opacity: [0.5, 1, 0.5], y: [0, -3, 0] }}
-      className="grid h-5 w-5 grid-cols-2 grid-rows-2 gap-0.5 rounded-md border border-emerald-100/20 bg-[radial-gradient(circle_at_28%_18%,#34d399,#047857_52%,#052e2b)] p-1 shadow-[0_8px_18px_rgba(0,0,0,0.22)]"
+      animate={
+        shouldReduceMotion
+          ? { opacity: 0.86 }
+          : { opacity: [0.58, 1, 0.58], rotate: [0, 5, 0], y: [0, large ? -7 : -3, 0] }
+      }
+      className={cn(
+        "grid grid-cols-2 grid-rows-2 gap-0.5 rounded-md border border-emerald-100/20 bg-[radial-gradient(circle_at_28%_18%,#34d399,#047857_52%,#052e2b)] shadow-[0_8px_18px_rgba(0,0,0,0.22)]",
+        large
+          ? "h-8 w-8 rounded-lg p-1.5 shadow-[0_16px_34px_rgba(0,0,0,0.28),0_0_24px_rgba(244,185,66,0.12)]"
+          : "h-5 w-5 p-1"
+      )}
       transition={
         shouldReduceMotion
           ? { duration: 0.01 }
-          : { delay, duration: 0.9, ease: "easeInOut", repeat: Infinity }
+          : { delay, duration: large ? 1.2 : 0.9, ease: "easeInOut", repeat: Infinity }
       }
     >
       {[0, 1, 2, 3].map((pip) => (
@@ -32,13 +41,18 @@ function MiniDie({ delay = 0 }: { delay?: number }) {
   );
 }
 
-function MiniDicePulse({ label = "Laedt" }: { label?: string }) {
+function MiniDicePulse({ label = "Laedt", large = false }: { label?: string; large?: boolean }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-3 py-2 text-xs font-semibold text-emerald-50/80 shadow-sm backdrop-blur-xl">
-      <span aria-hidden="true" className="flex items-center gap-1">
-        <MiniDie delay={0} />
-        <MiniDie delay={0.12} />
-        <MiniDie delay={0.24} />
+    <div
+      className={cn(
+        "inline-flex items-center rounded-full border border-white/10 bg-white/[0.08] font-semibold text-emerald-50/80 shadow-sm backdrop-blur-xl",
+        large ? "gap-3 px-4 py-3 text-sm" : "gap-2 px-3 py-2 text-xs"
+      )}
+    >
+      <span aria-hidden="true" className={cn("flex items-center", large ? "gap-1.5" : "gap-1")}>
+        <MiniDie delay={0} large={large} />
+        <MiniDie delay={0.14} large={large} />
+        <MiniDie delay={0.28} large={large} />
       </span>
       <span>{label}</span>
     </div>
@@ -151,11 +165,51 @@ function GameLoadingShape({ label }: { label?: string }) {
   );
 }
 
+function LoadingOverlay({ className, label }: { className?: string; label?: string }) {
+  const shouldReduceMotion = useReducedMotion();
+
+  return (
+    <div
+      className={cn(
+        "grid min-h-[calc(100svh-5rem)] place-items-center px-4 py-10",
+        className
+      )}
+      role="status"
+    >
+      <motion.section
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative grid w-full max-w-xs place-items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.09] px-5 py-6 text-center text-white shadow-[0_24px_90px_rgba(0,0,0,0.34)] backdrop-blur-xl sm:max-w-sm sm:px-7 sm:py-8"
+        initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.98, y: 6 }}
+        transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.18, ease: "easeOut" }}
+      >
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-brass/60 to-transparent"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute left-1/2 top-0 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brass/20 blur-3xl"
+        />
+        <div className="relative grid gap-4">
+          <MiniDicePulse label={label} large />
+          <div className="mx-auto h-1 w-28 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full w-2/3 rounded-full bg-[linear-gradient(90deg,transparent,rgba(244,185,66,0.75),transparent)] motion-safe:animate-shimmer" />
+          </div>
+        </div>
+      </motion.section>
+    </div>
+  );
+}
+
 export function FeltLoader({
   className,
   label = "Laedt",
   variant = "compact"
 }: FeltLoaderProps) {
+  if (variant === "overlay") {
+    return <LoadingOverlay className={className} label={label} />;
+  }
+
   if (variant === "dashboard") {
     return <DashboardLoadingShape label={label} />;
   }

@@ -9,10 +9,10 @@ import {
   addGuestPlayerAction,
   enterScoreAction,
   inviteFriendToGameAction,
-  movePlayerAction,
+  reorderPlayersAction,
   removeGuestPlayerAction,
-  renamePlayerAction,
   restartGameAction,
+  simulateGameAction,
   startGameAction
 } from "@/server/game/actions";
 import { getGameState } from "@/server/game/state";
@@ -45,10 +45,10 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
   const inviteLink = host ? `${protocol}://${host}${joinPath}` : joinPath;
   const boundStartGameAction = startGameAction.bind(null, initialState.gameId);
   const boundEnterScoreAction = enterScoreAction.bind(null, initialState.gameId);
-  const boundMovePlayerAction = movePlayerAction.bind(null, initialState.gameId);
+  const boundReorderPlayersAction = reorderPlayersAction.bind(null, initialState.gameId);
   const boundRestartGameAction = restartGameAction.bind(null, initialState.gameId);
+  const boundSimulateGameAction = simulateGameAction.bind(null, initialState.gameId);
   const boundAddGuestPlayerAction = addGuestPlayerAction.bind(null, initialState.gameId);
-  const boundRenamePlayerAction = renamePlayerAction.bind(null, initialState.gameId);
   const boundRemoveGuestPlayerAction = removeGuestPlayerAction.bind(null, initialState.gameId);
 
   return (
@@ -63,10 +63,11 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
           initialState={initialState}
           inviteFriendToGameAction={inviteFriendToGameAction}
           inviteLink={inviteLink}
-          movePlayerAction={boundMovePlayerAction}
+          isDebugAdmin={user.username.trim().toLowerCase() === "admin"}
+          reorderPlayersAction={boundReorderPlayersAction}
           removeGuestPlayerAction={boundRemoveGuestPlayerAction}
-          renamePlayerAction={boundRenamePlayerAction}
           restartGameAction={boundRestartGameAction}
+          simulateGameAction={boundSimulateGameAction}
           startGameAction={boundStartGameAction}
         />
       </PageContainer>

@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 
 import {
   areAllScoreCardsComplete,
+  calculateTotalScore,
+  calculateUpperBonus,
   determineNextPlayer,
   isCategoryFilled,
   isScoreCategory,
@@ -19,6 +21,10 @@ import { generateUniqueInviteCode } from "@/server/game/invite-code";
 
 const MAX_CREATE_GAME_ATTEMPTS = 5;
 const MAX_PLAYER_DISPLAY_NAME_LENGTH = 30;
+
+function isDebugAdmin(user: { username: string }): boolean {
+  return user.username.trim().toLowerCase() === "admin";
+}
 
 function readString(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -735,7 +741,82 @@ function readManualPoints(formData: FormData): number {
   return points;
 }
 
-export async function startGameAction(gameId: string): Promise<void> {
+function readPlayerOrder(formData: FormData | undefined): string[] {
+  if (!formData) {
+    return [];
+  }
+
+  const rawOrder = readString(formData, "playerOrder");
+
+  if (!rawOrder) {
+    return [];
+  }
+
+  try {
+    const playerOrder = JSON.parse(rawOrder) as unknown;
+
+    if (!Array.isArray(playerOrder)) {
+      return [];
+    }
+
+    return playerOrder.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+async function applyPlayerOrder(
+  tx: Prisma.TransactionClient,
+  players: Array<{ id: string; position: number }>,
+  playerOrder: string[]
+) {
+  if (playerOrder.length === 0) {
+    return players;
+  }
+
+  const playerIds = new Set(players.map((player) => player.id));
+  const orderedIds = new Set(playerOrder);
+
+  if (playerOrder.length !== players.length || orderedIds.size !== players.length) {
+    throw new Error("Spielerreihenfolge ist ungueltig.");
+  }
+
+  if (playerOrder.some((playerId) => !playerIds.has(playerId))) {
+    throw new Error("Spielerreihenfolge ist ungueltig.");
+  }
+
+  const playersById = new Map(players.map((player) => [player.id, player]));
+  const nextPlayers = playerOrder.map((playerId, index) => ({
+    ...playersById.get(playerId)!,
+    position: index + 1
+  }));
+
+  for (const [index, player] of nextPlayers.entries()) {
+    await tx.gamePlayer.update({
+      data: {
+        position: index + 1000
+      },
+      where: {
+        id: player.id
+      }
+    });
+  }
+
+  for (const player of nextPlayers) {
+    await tx.gamePlayer.update({
+      data: {
+        position: player.position
+      },
+      where: {
+        id: player.id
+      }
+    });
+  }
+
+  return nextPlayers;
+}
+
+export async function startGameAction(gameId: string, formData?: FormData): Promise<void> {
   const user = await requireCurrentUser();
   const errorPath = `/games/${gameId}`;
 
@@ -746,7 +827,9 @@ export async function startGameAction(gameId: string): Promise<void> {
           position: "asc"
         },
         select: {
-          id: true
+          id: true,
+          position: true,
+          userId: true
         }
       }
     },
@@ -771,18 +854,111 @@ export async function startGameAction(gameId: string): Promise<void> {
     redirectWithError(errorPath, "Zum Starten werden mindestens 2 Spieler benoetigt.");
   }
 
-  await prisma.game.update({
-    data: {
-      currentPlayerId: game.players[0].id,
-      roundNumber: 1,
-      status: "ACTIVE"
-    },
-    where: {
-      id: game.id
+  const guestNames = new Map<string, string>();
+  const playerOrder = readPlayerOrder(formData);
+
+  if (formData) {
+    for (const player of game.players) {
+      if (player.userId !== null) {
+        continue;
+      }
+
+      const displayName = normalizeDisplayName(readString(formData, `playerName:${player.id}`));
+
+      if (!displayName) {
+        redirectWithError(errorPath, "Gastspielername darf nicht leer sein.");
+      }
+
+      if (displayName.length > MAX_PLAYER_DISPLAY_NAME_LENGTH) {
+        redirectWithError(
+          errorPath,
+          `Gastspielername darf maximal ${MAX_PLAYER_DISPLAY_NAME_LENGTH} Zeichen lang sein.`
+        );
+      }
+
+      guestNames.set(player.id, displayName);
     }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const orderedPlayers = await applyPlayerOrder(tx, game.players, playerOrder);
+
+    for (const [playerId, displayName] of guestNames.entries()) {
+      await tx.gamePlayer.update({
+        data: {
+          displayName
+        },
+        where: {
+          id: playerId
+        }
+      });
+    }
+
+    await tx.game.update({
+      data: {
+        currentPlayerId: orderedPlayers[0].id,
+        roundNumber: 1,
+        status: "ACTIVE"
+      },
+      where: {
+        id: game.id
+      }
+    });
   });
 
   redirect(`/games/${game.id}`);
+}
+
+export async function reorderPlayersAction(gameId: string, formData: FormData): Promise<void> {
+  const user = await requireCurrentUser();
+  const errorPath = `/games/${gameId}`;
+  const playerOrder = readPlayerOrder(formData);
+
+  if (playerOrder.length === 0) {
+    return;
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            orderBy: {
+              position: "asc"
+            },
+            select: {
+              id: true,
+              position: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.ownerId !== user.id) {
+        throw new Error("Nur der Owner kann die Reihenfolge aendern.");
+      }
+
+      if (game.status !== "LOBBY") {
+        throw new Error("Reihenfolge kann nur in der Lobby geaendert werden.");
+      }
+
+      await applyPlayerOrder(tx, game.players, playerOrder);
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Reihenfolge konnte nicht geaendert werden.";
+
+    redirectWithError(errorPath, message);
+  }
+
+  revalidatePath(errorPath);
 }
 
 export async function movePlayerAction(
@@ -964,6 +1140,143 @@ export async function restartGameAction(gameId: string): Promise<void> {
     redirectWithError(errorPath, message);
   }
 
+  redirect(errorPath);
+}
+
+function createSimulatedScoreCard(winner: boolean, offset: number) {
+  const scoreCard = winner
+    ? {
+        chance: 25,
+        fives: 15,
+        fourOfAKind: 26,
+        fours: 12,
+        fullHouse: 25,
+        kniffel: 50,
+        largeStraight: 40,
+        ones: 3,
+        sixes: 18,
+        smallStraight: 30,
+        threeOfAKind: 24,
+        threes: 9,
+        twos: 6
+      }
+    : {
+        chance: Math.max(10, 20 - offset),
+        fives: Math.max(0, 10 - offset),
+        fourOfAKind: Math.max(0, 18 - offset),
+        fours: Math.max(0, 8 - offset),
+        fullHouse: offset % 2 === 0 ? 25 : 0,
+        kniffel: 0,
+        largeStraight: offset % 3 === 0 ? 40 : 0,
+        ones: Math.max(0, 2 - offset),
+        sixes: Math.max(0, 12 - offset),
+        smallStraight: 30,
+        threeOfAKind: Math.max(0, 16 - offset),
+        threes: Math.max(0, 6 - offset),
+        twos: Math.max(0, 4 - offset)
+      };
+
+  return {
+    ...scoreCard,
+    total: calculateTotalScore(scoreCard),
+    upperBonus: calculateUpperBonus(scoreCard)
+  };
+}
+
+export async function simulateGameAction(gameId: string): Promise<void> {
+  const user = await requireCurrentUser();
+  const errorPath = `/games/${gameId}`;
+
+  if (!isDebugAdmin(user)) {
+    redirectWithError(errorPath, "Nur der Debug-User admin darf Spiele simulieren.");
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            orderBy: {
+              position: "asc"
+            },
+            select: {
+              id: true,
+              position: true,
+              userId: true
+            }
+          },
+          scoreCards: {
+            select: {
+              id: true,
+              playerId: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.players.length < 1) {
+        throw new Error("Keine Spieler vorhanden.");
+      }
+
+      const winnerPlayer =
+        game.players.find((player) => player.userId === user.id) ?? game.players[0];
+
+      for (const [index, player] of game.players.entries()) {
+        const scoreCard = game.scoreCards.find((entry) => entry.playerId === player.id);
+
+        if (!scoreCard) {
+          continue;
+        }
+
+        const simulatedScoreCard = createSimulatedScoreCard(
+          player.id === winnerPlayer.id,
+          index + 1
+        );
+
+        await tx.scoreCard.update({
+          data: {
+            ...simulatedScoreCard,
+            struckCategories: []
+          },
+          where: {
+            id: scoreCard.id
+          }
+        });
+      }
+
+      await tx.turn.create({
+        data: {
+          diceValues: [6, 6, 6, 6, 6],
+          gameId: game.id,
+          playerId: winnerPlayer.id,
+          status: "FINISHED"
+        }
+      });
+
+      await tx.game.update({
+        data: {
+          currentPlayerId: null,
+          status: "FINISHED"
+        },
+        where: {
+          id: game.id
+        }
+      });
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Spiel konnte nicht simuliert werden.";
+
+    redirectWithError(errorPath, message);
+  }
+
+  revalidatePath(errorPath);
   redirect(errorPath);
 }
 

@@ -4,6 +4,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { SubmitButton } from "@/components/ui/SubmitButton";
+import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/server/auth/session";
 import { createGameAction } from "@/server/game/actions";
 
@@ -19,6 +20,8 @@ export default async function NewGamePage({ searchParams }: NewGamePageProps) {
   await requireCurrentUser();
 
   const { error } = await searchParams;
+  const nextGameNumber = (await prisma.game.count()) + 1;
+  const defaultGameName = `Kniffel#${nextGameNumber}`;
 
   return (
     <>
@@ -37,7 +40,7 @@ export default async function NewGamePage({ searchParams }: NewGamePageProps) {
             maxLength={50}
             minLength={3}
             name="name"
-            placeholder="Freitagabend"
+            defaultValue={defaultGameName}
             required
             type="text"
           />

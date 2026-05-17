@@ -18,11 +18,12 @@ type GameViewProps = {
   initialState: GameState;
   inviteFriendToGameAction: (formData: FormData) => void | Promise<void>;
   inviteLink: string;
-  movePlayerAction: (playerId: string, direction: "up" | "down") => void | Promise<void>;
+  isDebugAdmin?: boolean;
+  reorderPlayersAction: (formData: FormData) => void | Promise<void>;
   removeGuestPlayerAction: (playerId: string) => void | Promise<void>;
-  renamePlayerAction: (playerId: string, formData: FormData) => void | Promise<void>;
   restartGameAction: () => void | Promise<void>;
-  startGameAction: () => void | Promise<void>;
+  simulateGameAction?: () => void | Promise<void>;
+  startGameAction: (formData: FormData) => void | Promise<void>;
 };
 
 export function GameView({
@@ -33,10 +34,11 @@ export function GameView({
   initialState,
   inviteFriendToGameAction,
   inviteLink,
-  movePlayerAction,
+  isDebugAdmin = false,
+  reorderPlayersAction,
   removeGuestPlayerAction,
-  renamePlayerAction,
   restartGameAction,
+  simulateGameAction,
   startGameAction
 }: GameViewProps) {
   function getNextPlayerId(nextFromState: GameState): string | null {
@@ -200,11 +202,12 @@ export function GameView({
           currentUserId={currentUserId}
           inviteLink={inviteLink}
           inviteFriendToGameAction={inviteFriendToGameAction}
-          movePlayerAction={movePlayerAction}
           onOpenTurn={() => setTurnModeOpen(true)}
+          reorderPlayersAction={reorderPlayersAction}
           removeGuestPlayerAction={removeGuestPlayerAction}
-          renamePlayerAction={renamePlayerAction}
           restartGameAction={restartGameAction}
+          showDebugSimulation={isDebugAdmin && Boolean(simulateGameAction)}
+          simulateGameAction={simulateGameAction}
           startGameAction={startGameAction}
           state={state}
         />

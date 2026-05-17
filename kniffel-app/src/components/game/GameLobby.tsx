@@ -1,20 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import type { PointerEvent } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, Reorder, useDragControls, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
-  ArrowDown,
-  ArrowUp,
   ChevronRight,
   Clipboard,
   Crown,
   FileText,
+  GripVertical,
   Hourglass,
   Play,
   RotateCw,
-  Save,
   Trash2,
   Trophy,
   UserPlus,
@@ -24,6 +23,7 @@ import Link from "next/link";
 
 import { CopyInviteLinkButton } from "@/components/game/CopyInviteLinkButton";
 import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
+import { WinnerCelebrationOverlay } from "@/components/game/WinnerCelebrationOverlay";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button, buttonVariants } from "@/components/ui/Button";
@@ -41,6 +41,7 @@ import {
 } from "@/game/game-state";
 import { scoreCategories } from "@/game/scorecard";
 import type { GameState } from "@/game/state";
+import { isCurrentUserWinner } from "@/game/victory-celebration";
 import { cn } from "@/lib/cn";
 
 type GameLobbyProps = {
@@ -48,12 +49,13 @@ type GameLobbyProps = {
   currentUserId: string;
   inviteFriendToGameAction: (formData: FormData) => void | Promise<void>;
   inviteLink: string;
-  movePlayerAction: (playerId: string, direction: "up" | "down") => void | Promise<void>;
   onOpenTurn: () => void;
+  reorderPlayersAction: (formData: FormData) => void | Promise<void>;
   removeGuestPlayerAction: (playerId: string) => void | Promise<void>;
-  renamePlayerAction: (playerId: string, formData: FormData) => void | Promise<void>;
   restartGameAction: () => void | Promise<void>;
-  startGameAction: () => void | Promise<void>;
+  showDebugSimulation?: boolean;
+  simulateGameAction?: () => void | Promise<void>;
+  startGameAction: (formData: FormData) => void | Promise<void>;
   state: GameState;
 };
 
@@ -144,20 +146,175 @@ function MenuCard({
   );
 }
 
+function LobbyPlayerReorderItem({
+  active,
+  currentUserPlayerId,
+  isOwner,
+  onDragEnd,
+  onDragStart,
+  player,
+  position,
+  removeGuestPlayerAction,
+  shouldReduceMotion,
+  startGameFormId
+}: {
+  active: boolean;
+  currentUserPlayerId?: string;
+  isOwner: boolean;
+  onDragEnd: () => void;
+  onDragStart: (playerId: string) => void;
+  player: GameState["players"][number];
+  position: number;
+  removeGuestPlayerAction: (playerId: string) => void | Promise<void>;
+  shouldReduceMotion: boolean | null;
+  startGameFormId: string;
+}) {
+  const dragControls = useDragControls();
+  const longPressTimeoutRef = useRef<number | null>(null);
+  const [pressingHandle, setPressingHandle] = useState(false);
+  const own = player.id === currentUserPlayerId;
+  const editableGuest = isOwner && player.userId === null;
+
+  function clearLongPress() {
+    if (longPressTimeoutRef.current !== null) {
+      window.clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+
+    setPressingHandle(false);
+  }
+
+  function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
+    if (!isOwner) {
+      return;
+    }
+
+    setPressingHandle(true);
+    longPressTimeoutRef.current = window.setTimeout(() => {
+      longPressTimeoutRef.current = null;
+      dragControls.start(event);
+    }, 280);
+  }
+
+  useEffect(() => clearLongPress, []);
+
+  return (
+    <Reorder.Item
+      as="div"
+      className="relative"
+      dragControls={dragControls}
+      dragListener={false}
+      onDragEnd={() => {
+        clearLongPress();
+        onDragEnd();
+      }}
+      onDragStart={() => onDragStart(player.id)}
+      value={player.id}
+      whileDrag={
+        shouldReduceMotion
+          ? undefined
+          : {
+              scale: 1.025,
+              transition: { duration: 0.16 }
+            }
+      }
+    >
+      <motion.div
+        animate={
+          active && !shouldReduceMotion
+            ? { boxShadow: "0 22px 64px rgba(0,0,0,0.34), 0 0 34px rgba(244,185,66,0.22)" }
+            : { boxShadow: "0 14px 38px rgba(0,0,0,0.18)" }
+        }
+        className={cn(
+          "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border px-2.5 py-2 text-white backdrop-blur-xl sm:px-3",
+          active
+            ? "border-brass/45 bg-brass/[0.14]"
+            : "border-white/10 bg-white/[0.07]"
+        )}
+        layout="position"
+        transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.18 }}
+      >
+        {isOwner ? (
+          <button
+            aria-label={`${player.displayName} verschieben`}
+            className={cn(
+              "grid h-9 w-9 touch-none place-items-center rounded-lg border text-emerald-50 transition-all sm:h-10 sm:w-10",
+              pressingHandle || active
+                ? "border-brass/45 bg-brass/[0.16] text-brass"
+                : "border-white/10 bg-white/[0.08] text-emerald-50/60"
+            )}
+            onPointerCancel={clearLongPress}
+            onPointerDown={handlePointerDown}
+            onPointerLeave={clearLongPress}
+            onPointerUp={clearLongPress}
+            type="button"
+          >
+            <GripVertical aria-hidden="true" className="h-5 w-5" />
+          </button>
+        ) : null}
+
+        <div className="min-w-0 grid gap-1">
+          <p className="truncate text-[0.68rem] font-semibold text-emerald-50/55">
+            Position {position}
+            {player.userId === null ? " / Gast" : own ? " / du" : ""}
+          </p>
+          {editableGuest ? (
+            <input
+              aria-label={`${player.displayName} umbenennen`}
+              className="h-9 min-w-0 rounded-lg border border-white/10 bg-black/15 px-2.5 py-1.5 text-sm font-semibold text-white outline-none transition-colors placeholder:text-emerald-50/40 focus:border-brass/70 focus:ring-4 focus:ring-brass/15 sm:h-10 sm:px-3"
+              defaultValue={player.displayName}
+              form={startGameFormId}
+              maxLength={30}
+              name={`playerName:${player.id}`}
+              required
+              type="text"
+            />
+          ) : (
+            <p className="truncate font-semibold text-white">
+              {player.displayName}
+            </p>
+          )}
+        </div>
+
+        {isOwner && player.userId === null ? (
+          <form action={removeGuestPlayerAction.bind(null, player.id)} className="justify-self-end">
+            <Button
+              aria-label={`${player.displayName} entfernen`}
+              className="h-9 min-h-9 w-9 px-0 sm:h-10 sm:min-h-10 sm:w-10"
+              size="sm"
+              type="submit"
+              variant="danger"
+            >
+              <Trash2 aria-hidden="true" className="h-4 w-4" />
+            </Button>
+          </form>
+        ) : null}
+      </motion.div>
+    </Reorder.Item>
+  );
+}
+
 export function GameLobby({
   addGuestPlayerAction,
   currentUserId,
   inviteFriendToGameAction,
   inviteLink,
-  movePlayerAction,
   onOpenTurn,
+  reorderPlayersAction,
   removeGuestPlayerAction,
-  renamePlayerAction,
   restartGameAction,
+  showDebugSimulation = false,
+  simulateGameAction,
   startGameAction,
   state
 }: GameLobbyProps) {
   const [view, setView] = useState<LobbyView>("overview");
+  const [orderedPlayerIds, setOrderedPlayerIds] = useState(() =>
+    state.players.map((player) => player.id)
+  );
+  const [activeDragPlayerId, setActiveDragPlayerId] = useState<string | null>(null);
+  const [, startReorderTransition] = useTransition();
+  const orderedPlayerIdsRef = useRef(orderedPlayerIds);
   const shouldReduceMotion = useReducedMotion();
   const currentPlayer = getCurrentPlayer(state);
   const currentUserPlayer = getPlayerByUserId(state, currentUserId);
@@ -171,6 +328,50 @@ export function GameLobby({
   const canStartNow = canStart && state.players.length >= 2;
   const userFilledCount = getFilledCategoryCount(currentUserScoreCard);
   const showFinishedView = state.status === "FINISHED";
+  const showVictoryCelebration = isCurrentUserWinner(state, currentUserId);
+  const startGameFormId = `start-game-${state.gameId}`;
+  const playersById = new Map(state.players.map((player) => [player.id, player]));
+  const orderedPlayers = orderedPlayerIds
+    .map((playerId) => playersById.get(playerId))
+    .filter((player): player is GameState["players"][number] => Boolean(player));
+  const persistedPlayerOrder = state.players.map((player) => player.id);
+
+  useEffect(() => {
+    orderedPlayerIdsRef.current = orderedPlayerIds;
+  }, [orderedPlayerIds]);
+
+  useEffect(() => {
+    const nextPlayerIds = state.players.map((player) => player.id);
+    const currentPlayerIds = new Set(orderedPlayerIds);
+    const samePlayers =
+      nextPlayerIds.length === orderedPlayerIds.length &&
+      nextPlayerIds.every((playerId) => currentPlayerIds.has(playerId));
+
+    if (!samePlayers) {
+      setOrderedPlayerIds(nextPlayerIds);
+    }
+  }, [orderedPlayerIds, state.players]);
+
+  function persistPlayerOrder(nextPlayerIds: string[]) {
+    if (!isOwner || state.status !== "LOBBY") {
+      return;
+    }
+
+    const unchanged =
+      nextPlayerIds.length === persistedPlayerOrder.length &&
+      nextPlayerIds.every((playerId, index) => playerId === persistedPlayerOrder[index]);
+
+    if (unchanged) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("playerOrder", JSON.stringify(nextPlayerIds));
+
+    startReorderTransition(() => {
+      void reorderPlayersAction(formData);
+    });
+  }
 
   const detailHeader =
     view === "overview" ? null : (
@@ -191,6 +392,10 @@ export function GameLobby({
 
   return (
     <div className="grid gap-4 pb-24 sm:gap-5 sm:pb-6">
+      {showVictoryCelebration ? (
+        <WinnerCelebrationOverlay />
+      ) : null}
+
       <section className="relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.08] p-4 text-white shadow-[0_22px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:p-5">
         <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-brass/40" />
         <div className="flex items-center justify-between gap-3">
@@ -219,6 +424,13 @@ export function GameLobby({
             <p className="text-base font-semibold tabular-nums">{state.roundNumber}</p>
           </div>
         </div>
+        {showDebugSimulation && simulateGameAction ? (
+          <form action={simulateGameAction} className="mt-3">
+            <SubmitButton className="min-h-10 px-3 py-2 text-xs" pendingLabel="Simuliert...">
+              Spiel simulieren
+            </SubmitButton>
+          </form>
+        ) : null}
       </section>
 
       {!showFinishedView && state.status === "ACTIVE" ? (
@@ -358,7 +570,25 @@ export function GameLobby({
                     </span>
                     <span className="min-w-0">
                       <span className="flex min-w-0 items-center gap-2">
-                        {winner ? <Crown aria-hidden="true" className="h-4 w-4 shrink-0 text-brass" /> : null}
+                        {winner ? (
+                          showVictoryCelebration && !shouldReduceMotion ? (
+                            <motion.span
+                              aria-hidden="true"
+                              animate={{ rotate: [0, -10, 9, 0], scale: [1, 1.2, 1] }}
+                              className="shrink-0 text-brass"
+                              transition={{
+                                duration: 2.4,
+                                ease: "easeInOut",
+                                repeat: Infinity,
+                                repeatDelay: 0.8
+                              }}
+                            >
+                              <Crown className="h-4 w-4" />
+                            </motion.span>
+                          ) : (
+                            <Crown aria-hidden="true" className="h-4 w-4 shrink-0 text-brass" />
+                          )
+                        ) : null}
                         <span className="truncate font-semibold">{entry.displayName}</span>
                       </span>
                       <span className="mt-0.5 block text-xs text-emerald-50/55">
@@ -475,7 +705,8 @@ export function GameLobby({
               </div>
 
               {canStart ? (
-                <form action={startGameAction}>
+                <form action={startGameAction} id={startGameFormId}>
+                  <input name="playerOrder" type="hidden" value={JSON.stringify(orderedPlayerIds)} />
                   <SubmitButton
                     className="w-full min-h-12"
                     disabled={!canStartNow}
@@ -496,92 +727,52 @@ export function GameLobby({
 
               {isOwner ? (
                 <form action={addGuestPlayerAction}>
-                  <SubmitButton className="w-full min-h-12" pendingLabel="Fuegt hinzu...">
+                  <SubmitButton
+                    className="min-h-10 w-fit justify-self-start border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-emerald-50/75 shadow-none hover:bg-white/[0.1]"
+                    pendingLabel="Fuegt hinzu..."
+                    variant="secondary"
+                  >
                     <UserPlus aria-hidden="true" className="h-4 w-4" />
-                    Gastspieler hinzufuegen
+                    Gastspieler
                   </SubmitButton>
                 </form>
               ) : null}
 
               <div className="grid gap-2">
-                {state.players.map((player, index) => (
-                  <div
-                    className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.07] px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                    key={player.id}
-                  >
-                    <div className="min-w-0 grid gap-2">
-                      <p className="text-xs font-semibold text-emerald-50/55">
-                        Position {player.position}
-                        {player.userId === null ? " / Gast" : ""}
-                      </p>
-                      {isOwner ? (
-                        <form
-                          action={renamePlayerAction.bind(null, player.id)}
-                          className="flex min-w-0 gap-2"
-                        >
-                          <input
-                            aria-label={`${player.displayName} umbenennen`}
-                            className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-sm font-semibold text-white outline-none transition-colors placeholder:text-emerald-50/40 focus:border-brass/70 focus:ring-4 focus:ring-brass/15"
-                            defaultValue={player.displayName}
-                            maxLength={30}
-                            name="displayName"
-                            required
-                            type="text"
-                          />
-                          <SubmitButton
-                            className="min-h-10 px-3 py-2"
-                            pendingLabel="..."
-                          >
-                            <Save aria-hidden="true" className="h-4 w-4" />
-                            <span className="sr-only">Speichern</span>
-                          </SubmitButton>
-                        </form>
-                      ) : (
-                        <p className="truncate font-semibold text-white">
-                          {player.displayName}
-                        </p>
-                      )}
-                    </div>
-                    {isOwner ? (
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <form action={movePlayerAction.bind(null, player.id, "up")}>
-                          <Button
-                            aria-label={`${player.displayName} nach oben`}
-                            disabled={index === 0}
-                            size="sm"
-                            type="submit"
-                            variant="secondary"
-                          >
-                            <ArrowUp aria-hidden="true" className="h-4 w-4" />
-                          </Button>
-                        </form>
-                        <form action={movePlayerAction.bind(null, player.id, "down")}>
-                          <Button
-                            aria-label={`${player.displayName} nach unten`}
-                            disabled={index === state.players.length - 1}
-                            size="sm"
-                            type="submit"
-                            variant="secondary"
-                          >
-                            <ArrowDown aria-hidden="true" className="h-4 w-4" />
-                          </Button>
-                        </form>
-                        {player.userId === null ? (
-                          <form action={removeGuestPlayerAction.bind(null, player.id)}>
-                            <Button
-                              aria-label={`${player.displayName} entfernen`}
-                              size="sm"
-                              type="submit"
-                              variant="danger"
-                            >
-                              <Trash2 aria-hidden="true" className="h-4 w-4" />
-                            </Button>
-                          </form>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
+                {isOwner ? (
+                  <p className="px-1 text-xs font-semibold text-emerald-50/55">
+                    Griff gedrueckt halten und Spieler verschieben.
+                  </p>
+                ) : null}
+                <Reorder.Group
+                  as="div"
+                  axis="y"
+                  className="grid gap-2"
+                  onReorder={(nextOrder) => {
+                    orderedPlayerIdsRef.current = nextOrder;
+                    setOrderedPlayerIds(nextOrder);
+                  }}
+                  values={orderedPlayerIds}
+                >
+                  {orderedPlayers.map((player, index) => (
+                    <LobbyPlayerReorderItem
+                      active={activeDragPlayerId === player.id}
+                      currentUserPlayerId={currentUserPlayer?.id}
+                      isOwner={isOwner}
+                      key={player.id}
+                      onDragEnd={() => {
+                        setActiveDragPlayerId(null);
+                        persistPlayerOrder(orderedPlayerIdsRef.current);
+                      }}
+                      onDragStart={setActiveDragPlayerId}
+                      player={player}
+                      position={index + 1}
+                      removeGuestPlayerAction={removeGuestPlayerAction}
+                      shouldReduceMotion={shouldReduceMotion}
+                      startGameFormId={startGameFormId}
+                    />
+                  ))}
+                </Reorder.Group>
               </div>
             </section>
           ) : null}
@@ -702,7 +893,7 @@ export function GameLobby({
 
           {view === "players" ? (
             <div className="grid gap-2">
-              {state.players.map((player, index) => {
+              {state.players.map((player) => {
                 const active = player.id === state.currentPlayerId;
                 const own = player.id === currentUserPlayer?.id;
 
@@ -727,32 +918,6 @@ export function GameLobby({
                         {active ? "am Zug" : own ? "du" : "wartet"}
                       </Badge>
                     </div>
-                    {isOwner && state.status === "LOBBY" ? (
-                      <div className="mt-3 flex gap-2">
-                        <form action={movePlayerAction.bind(null, player.id, "up")}>
-                          <Button
-                            aria-label={`${player.displayName} nach oben`}
-                            disabled={index === 0}
-                            size="sm"
-                            type="submit"
-                            variant="secondary"
-                          >
-                            <ArrowUp aria-hidden="true" className="h-4 w-4" />
-                          </Button>
-                        </form>
-                        <form action={movePlayerAction.bind(null, player.id, "down")}>
-                          <Button
-                            aria-label={`${player.displayName} nach unten`}
-                            disabled={index === state.players.length - 1}
-                            size="sm"
-                            type="submit"
-                            variant="secondary"
-                          >
-                            <ArrowDown aria-hidden="true" className="h-4 w-4" />
-                          </Button>
-                        </form>
-                      </div>
-                    ) : null}
                   </div>
                 );
               })}
