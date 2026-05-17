@@ -6,6 +6,7 @@ import {
   scoreCategories,
   scoreCategoryLabels
 } from "@/game/scorecard";
+import { expireInactiveActiveGames } from "@/server/game/expiration";
 import type { Friend, Game, GameHighlight, PlayerGameResult } from "@/social/types";
 
 const ONLINE_THRESHOLD_MS = 30_000;
@@ -49,10 +50,11 @@ function toFriend(user: {
   lastSeenAt: Date | null;
   updatedAt: Date;
   username: string;
-}): Friend {
+}, inGame = false): Friend {
   return {
     color: colorForId(user.id),
     favoriteCategory: "Offen",
+    inGame,
     id: user.id,
     initials: initials(user.username),
     isOnline: isOnline(user.lastSeenAt),
@@ -65,6 +67,14 @@ function toFriend(user: {
 
 function getKniffelCount(scoreCard: { kniffel: number | null }): number {
   return scoreCard.kniffel && scoreCard.kniffel > 0 ? 1 : 0;
+}
+
+function isCompleteScoreCard(
+  scoreCard: Partial<Record<(typeof scoreCategories)[number], number | null>>
+): boolean {
+  return scoreCategories.every(
+    (category) => scoreCard[category] !== null && scoreCard[category] !== undefined
+  );
 }
 
 function getCategoryScores(
@@ -128,6 +138,10 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
   });
 
   return games.flatMap((game) => {
+    if (!game.scoreCards.every(isCompleteScoreCard)) {
+      return [];
+    }
+
     const results = game.scoreCards.flatMap((scoreCard) => {
       const player = game.players.find((entry) => entry.id === scoreCard.playerId);
 
@@ -166,6 +180,8 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
 
 export async function getSocialState(): Promise<SocialState> {
   const user = await requireCurrentUser();
+
+  await expireInactiveActiveGames();
 
   const [friendships, incomingRequests, outgoingRequests] = await Promise.all([
     prisma.friendship.findMany({
@@ -226,21 +242,43 @@ export async function getSocialState(): Promise<SocialState> {
     })
   ]);
 
-  const friends = [
+  const friendUsers = [
     ...new Map(
       friendships.map((friendship) => {
         const friend = friendship.userId === user.id ? friendship.friend : friendship.user;
 
-        return [friend.id, toFriend(friend)];
+        return [friend.id, friend];
       })
     ).values()
-  ].sort((left, right) => {
-    if (left.isOnline !== right.isOnline) {
-      return left.isOnline ? -1 : 1;
-    }
+  ];
+  const friendIds = friendUsers.map((friend) => friend.id);
+  const activeFriendPlayers = friendIds.length
+    ? await prisma.gamePlayer.findMany({
+        select: {
+          userId: true
+        },
+        where: {
+          game: {
+            status: "ACTIVE"
+          },
+          userId: {
+            in: friendIds
+          }
+        }
+      })
+    : [];
+  const activeFriendUserIds = new Set(
+    activeFriendPlayers.flatMap((player) => (player.userId ? [player.userId] : []))
+  );
+  const friends = friendUsers
+    .map((friend) => toFriend(friend, activeFriendUserIds.has(friend.id)))
+    .sort((left, right) => {
+      if (left.isOnline !== right.isOnline) {
+        return left.isOnline ? -1 : 1;
+      }
 
-    return new Date(right.lastActiveAt).getTime() - new Date(left.lastActiveAt).getTime();
-  });
+      return new Date(right.lastActiveAt).getTime() - new Date(left.lastActiveAt).getTime();
+    });
   const games = await getFinishedSocialGames([user.id, ...friends.map((friend) => friend.id)]);
 
   return {

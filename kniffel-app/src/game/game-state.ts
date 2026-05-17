@@ -41,7 +41,8 @@ export function canUserManageCurrentTurn(state: GameState, currentUserId: string
   return Boolean(
     state.status === "ACTIVE" &&
       currentPlayer &&
-      (currentPlayer.userId === currentUserId || state.ownerId === currentUserId)
+      (currentPlayer.userId === currentUserId ||
+        (currentPlayer.userId === null && state.ownerId === currentUserId))
   );
 }
 

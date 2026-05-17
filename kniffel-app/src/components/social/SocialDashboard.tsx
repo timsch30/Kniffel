@@ -13,7 +13,6 @@ import {
   UsersRound
 } from "lucide-react";
 
-import { AchievementUnlockNotifications } from "@/components/social/AchievementUnlockNotifications";
 import { AchievementsPanel } from "@/components/social/AchievementsPanel";
 import { FriendList } from "@/components/social/FriendList";
 import { HeadToHeadCard } from "@/components/social/HeadToHeadCard";
@@ -63,6 +62,7 @@ const tabs: { icon: typeof UsersRound; id: TabId; label: string }[] = [
   const fallbackFriend: Friend = {
   color: "bg-slate-600 text-white",
   favoriteCategory: "Offen",
+  inGame: false,
   id: "fallback",
   initials: "--",
   isOnline: false,
@@ -118,7 +118,6 @@ export function SocialDashboard({
 
   return (
     <div className="grid min-w-0 gap-5 overflow-x-hidden text-white">
-      <AchievementUnlockNotifications achievements={achievements} userId={user.id} />
       {error ? <Alert variant="danger">{error}</Alert> : null}
 
       <section className="grid gap-4">

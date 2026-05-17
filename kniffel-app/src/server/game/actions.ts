@@ -17,6 +17,7 @@ import {
 import { assertValidDiceValues, calculateScoreForCategory } from "@/game/scoring";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/server/auth/session";
+import { expireInactiveActiveGame } from "@/server/game/expiration";
 import { generateUniqueInviteCode } from "@/server/game/invite-code";
 
 const MAX_CREATE_GAME_ATTEMPTS = 5;
@@ -1296,6 +1297,8 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
     redirectWithError(errorPath, "Ungueltiger Eintrag.");
   }
 
+  await expireInactiveActiveGame(gameId);
+
   try {
     if (mode === "dice") {
       diceValues = readDiceValues(formData);
@@ -1343,7 +1346,10 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
         throw new Error("Aktueller Spieler fehlt.");
       }
 
-      if (currentPlayer.userId !== user.id && game.ownerId !== user.id) {
+      if (
+        currentPlayer.userId !== user.id &&
+        (currentPlayer.userId !== null || game.ownerId !== user.id)
+      ) {
         throw new Error("Du bist nicht am Zug.");
       }
 

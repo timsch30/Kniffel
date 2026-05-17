@@ -328,6 +328,7 @@ export function GameLobby({
   const canStartNow = canStart && state.players.length >= 2;
   const userFilledCount = getFilledCategoryCount(currentUserScoreCard);
   const showFinishedView = state.status === "FINISHED";
+  const statusLabel = showFinishedView && !state.winner ? "Ausgelaufen" : formatStatus(state.status);
   const showVictoryCelebration = isCurrentUserWinner(state, currentUserId);
   const startGameFormId = `start-game-${state.gameId}`;
   const playersById = new Map(state.players.map((player) => [player.id, player]));
@@ -408,7 +409,7 @@ export function GameLobby({
           </Link>
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex flex-wrap items-center gap-2">
-              <Badge variant={statusVariant(state.status)}>{formatStatus(state.status)}</Badge>
+              <Badge variant={statusVariant(state.status)}>{statusLabel}</Badge>
               {userTurn ? (
                 <Badge variant="success">Du bist dran</Badge>
               ) : canManageTurn && isOwner ? (
@@ -605,6 +606,40 @@ export function GameLobby({
                 );
               })}
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {showFinishedView && !state.winner ? (
+        <section className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/10 text-emerald-50">
+              <Hourglass aria-hidden="true" className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold text-white">Runde ausgelaufen</p>
+              <p className="mt-1 text-sm text-emerald-50/65">
+                Diese aktive Runde wurde laenger als 48 Stunden nicht bespielt.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {isOwner ? (
+              <form action={restartGameAction}>
+                <SubmitButton pendingLabel="Startet neu...">
+                  <RotateCw aria-hidden="true" className="h-4 w-4" />
+                  Neue Runde
+                </SubmitButton>
+              </form>
+            ) : (
+              <Link className={buttonVariants("primary")} href="/games/new">
+                <RotateCw aria-hidden="true" className="h-4 w-4" />
+                Neue Runde
+              </Link>
+            )}
+            <Link className={buttonVariants("secondary")} href="/dashboard">
+              Zum Dashboard
+            </Link>
           </div>
         </section>
       ) : null}

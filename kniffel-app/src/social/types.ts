@@ -12,6 +12,7 @@ export type FriendStatus = "accepted" | "incoming" | "outgoing";
 
 export type Friend = Player & {
   favoriteCategory: string;
+  inGame: boolean;
   isOnline: boolean;
   lastActiveAt: string;
   lastSeenAt: string | null;

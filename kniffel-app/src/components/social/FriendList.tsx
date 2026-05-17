@@ -80,6 +80,7 @@ export function FriendList({
 
         {friends.map((friend) => {
           const selected = friend.id === selectedFriendId;
+          const showInGame = friend.isOnline && friend.inGame;
 
           return (
             <div
@@ -104,10 +105,12 @@ export function FriendList({
                       {friend.name}
                     </span>
                     <span
-                      aria-label={friend.isOnline ? "Online" : "Offline"}
+                      aria-label={showInGame ? "Im Spiel" : friend.isOnline ? "Online" : "Offline"}
                       className={cn(
                         "h-2 w-2 shrink-0 rounded-full",
-                        friend.isOnline
+                        showInGame
+                          ? "bg-brass shadow-[0_0_0_3px_rgba(244,185,66,0.2)]"
+                          : friend.isOnline
                           ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]"
                           : "bg-emerald-50/35"
                       )}
@@ -115,7 +118,11 @@ export function FriendList({
                   </span>
                   <span className="flex items-center gap-1 text-xs text-emerald-50/65">
                     <Clock aria-hidden="true" className="h-3 w-3" />
-                    {friend.isOnline ? "Online" : `Zuletzt ${formatLastActive(friend.lastActiveAt)}`}
+                    {showInGame
+                      ? "Im Spiel"
+                      : friend.isOnline
+                        ? "Online"
+                        : `Zuletzt ${formatLastActive(friend.lastActiveAt)}`}
                   </span>
                 </span>
               </button>

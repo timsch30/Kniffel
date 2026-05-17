@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/Badge";
 import { buttonVariants } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { scoreCategories } from "@/game/scorecard";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/server/auth/session";
 import {
@@ -31,6 +32,7 @@ import {
   deleteGameAction,
   leaveGameAction
 } from "@/server/game/actions";
+import { expireInactiveActiveGames } from "@/server/game/expiration";
 import {
   acceptFriendRequestAction,
   declineFriendRequestAction
@@ -47,6 +49,28 @@ function formatStatus(status: string): string {
   };
 
   return labels[status] ?? status;
+}
+
+function isCompleteScoreCard(
+  scoreCard: Partial<Record<(typeof scoreCategories)[number], number | null>>
+): boolean {
+  return scoreCategories.every(
+    (category) => scoreCard[category] !== null && scoreCard[category] !== undefined
+  );
+}
+
+function isExpiredGame(game: {
+  scoreCards: Array<Partial<Record<(typeof scoreCategories)[number], number | null>>>;
+  status: string;
+}): boolean {
+  return game.status === "FINISHED" && !game.scoreCards.every(isCompleteScoreCard);
+}
+
+function formatGameStatus(game: {
+  scoreCards: Array<Partial<Record<(typeof scoreCategories)[number], number | null>>>;
+  status: string;
+}): string {
+  return isExpiredGame(game) ? "Ausgelaufen" : formatStatus(game.status);
 }
 
 function statusVariant(status: string): "accent" | "neutral" | "success" | "warning" {
@@ -103,6 +127,9 @@ type DashboardPageProps = {
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const user = await requireCurrentUser();
   const { error } = await searchParams;
+
+  await expireInactiveActiveGames();
+
   const [gamePlayers, gameInvitations, socialState] = await Promise.all([
     prisma.gamePlayer.findMany({
     include: {
@@ -111,6 +138,23 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           _count: {
             select: {
               players: true
+            }
+          },
+          scoreCards: {
+            select: {
+              chance: true,
+              fives: true,
+              fourOfAKind: true,
+              fours: true,
+              fullHouse: true,
+              kniffel: true,
+              largeStraight: true,
+              ones: true,
+              sixes: true,
+              smallStraight: true,
+              threeOfAKind: true,
+              threes: true,
+              twos: true
             }
           }
         }
@@ -307,42 +351,42 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </section>
 
       {archivedGamePlayers.length > 0 ? (
-        <section className="grid gap-3">
-          <details className="group rounded-lg border border-white/10 bg-white/[0.08] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-              <div>
+        <section className="grid min-w-0 max-w-full gap-3">
+          <details className="group min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.08] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+            <summary className="grid min-w-0 cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+              <div className="min-w-0">
                 <h2 className="text-lg font-semibold tracking-tight text-white">
                   Archiv
                 </h2>
                 <p className="text-sm text-emerald-50/60">
-                  {archivedGamePlayers.length} beendete Runden
+                  {archivedGamePlayers.length} Runden im Archiv
                 </p>
               </div>
               <span className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold text-emerald-50 transition-colors group-open:bg-white/15">
                 Archiv anzeigen
               </span>
             </summary>
-            <div className="mt-4 grid gap-2">
+            <div className="mt-4 grid min-w-0 gap-2">
               {archivedGamePlayers.map(({ game }) => {
                 const isOwner = game.ownerId === user.id;
 
                 return (
                   <div
-                    className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2"
+                    className="grid min-w-0 gap-2 rounded-lg border border-white/10 bg-black/15 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3"
                     key={game.id}
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
                         <p className="truncate text-sm font-semibold text-white">
                           {game.name}
                         </p>
-                        <Badge variant="neutral">{formatStatus(game.status)}</Badge>
+                        <Badge className="shrink-0" variant="neutral">{formatGameStatus(game)}</Badge>
                       </div>
                       <p className="mt-0.5 text-xs text-emerald-50/60">
                         Aktualisiert am {formatDate(game.updatedAt)} / {game._count.players} Spieler
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2 sm:shrink-0 sm:justify-end">
                       <Link
                         className="rounded-md px-2 py-1 text-xs font-semibold text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
                         href={`/games/${game.id}`}

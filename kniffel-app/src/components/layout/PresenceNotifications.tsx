@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 
 const FRIEND_PRESENCE_INTERVAL_MS = 10_000;
 const TOAST_DURATION_MS = 3_000;
 
 type OnlineFriend = {
   id: string;
+  inGame: boolean;
   lastSeenAt: string;
   username: string;
 };
@@ -32,27 +35,25 @@ function dispatchFriendsPresence(friends: OnlineFriend[]) {
 }
 
 export function PresenceNotifications() {
-  const [toast, setToast] = useState<PresenceToast | null>(null);
+  const { notify } = useNotifications();
   const knownOnlineIdsRef = useRef<Set<string> | null>(null);
-  const toastTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
 
     function showToast(friend: OnlineFriend) {
-      if (toastTimeoutRef.current !== null) {
-        window.clearTimeout(toastTimeoutRef.current);
-      }
-
-      setToast({
+      const toast: PresenceToast = {
         id: `${friend.id}-${friend.lastSeenAt}`,
-        message: `${friend.username} ist online.`
-      });
+        message: friend.inGame ? `${friend.username} ist im Spiel.` : `${friend.username} ist online.`
+      };
 
-      toastTimeoutRef.current = window.setTimeout(() => {
-        setToast(null);
-        toastTimeoutRef.current = null;
-      }, TOAST_DURATION_MS);
+      notify({
+        durationMs: TOAST_DURATION_MS,
+        id: `presence:${toast.id}`,
+        kind: "presence",
+        message: toast.message,
+        title: "Freund online"
+      });
     }
 
     async function checkFriendsPresence() {
@@ -110,26 +111,8 @@ export function PresenceNotifications() {
       active = false;
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-
-      if (toastTimeoutRef.current !== null) {
-        window.clearTimeout(toastTimeoutRef.current);
-      }
     };
-  }, []);
+  }, [notify]);
 
-  if (!toast) {
-    return null;
-  }
-
-  return (
-    <div className="pointer-events-none fixed inset-x-0 top-3 z-[80] flex justify-center px-4">
-      <div
-        className="rounded-lg border border-emerald-500/25 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-card dark:border-emerald-300/25 dark:bg-emerald-300/10 dark:text-emerald-100 dark:shadow-card-dark"
-        key={toast.id}
-        role="status"
-      >
-        {toast.message}
-      </div>
-    </div>
-  );
+  return null;
 }
