@@ -14,6 +14,8 @@ import {
   Hourglass,
   Play,
   RotateCw,
+  Save,
+  Trash2,
   Trophy,
   UserPlus,
   UsersRound
@@ -27,6 +29,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button, buttonVariants } from "@/components/ui/Button";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import {
+  canUserManageCurrentTurn,
   getCurrentPlayer,
   getCurrentUserScoreCard,
   getFilledCategoryCount,
@@ -41,11 +44,14 @@ import type { GameState } from "@/game/state";
 import { cn } from "@/lib/cn";
 
 type GameLobbyProps = {
+  addGuestPlayerAction: () => void | Promise<void>;
   currentUserId: string;
   inviteFriendToGameAction: (formData: FormData) => void | Promise<void>;
   inviteLink: string;
   movePlayerAction: (playerId: string, direction: "up" | "down") => void | Promise<void>;
   onOpenTurn: () => void;
+  removeGuestPlayerAction: (playerId: string) => void | Promise<void>;
+  renamePlayerAction: (playerId: string, formData: FormData) => void | Promise<void>;
   restartGameAction: () => void | Promise<void>;
   startGameAction: () => void | Promise<void>;
   state: GameState;
@@ -139,11 +145,14 @@ function MenuCard({
 }
 
 export function GameLobby({
+  addGuestPlayerAction,
   currentUserId,
   inviteFriendToGameAction,
   inviteLink,
   movePlayerAction,
   onOpenTurn,
+  removeGuestPlayerAction,
+  renamePlayerAction,
   restartGameAction,
   startGameAction,
   state
@@ -156,6 +165,7 @@ export function GameLobby({
   const leader = getLeader(state);
   const nextPlayer = getNextPlayer(state);
   const userTurn = isUserTurn(state, currentUserId);
+  const canManageTurn = canUserManageCurrentTurn(state, currentUserId);
   const isOwner = state.ownerId === currentUserId;
   const canStart = isOwner && state.status === "LOBBY";
   const canStartNow = canStart && state.players.length >= 2;
@@ -194,7 +204,11 @@ export function GameLobby({
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex flex-wrap items-center gap-2">
               <Badge variant={statusVariant(state.status)}>{formatStatus(state.status)}</Badge>
-              {userTurn ? <Badge variant="success">Du bist dran</Badge> : null}
+              {userTurn ? (
+                <Badge variant="success">Du bist dran</Badge>
+              ) : canManageTurn && isOwner ? (
+                <Badge variant="success">Admin verwaltet</Badge>
+              ) : null}
             </div>
             <h1 className="truncate text-2xl font-semibold tracking-tight text-white">
               {state.name}
@@ -480,22 +494,56 @@ export function GameLobby({
                 </Alert>
               )}
 
+              {isOwner ? (
+                <form action={addGuestPlayerAction}>
+                  <SubmitButton className="w-full min-h-12" pendingLabel="Fuegt hinzu...">
+                    <UserPlus aria-hidden="true" className="h-4 w-4" />
+                    Gastspieler hinzufuegen
+                  </SubmitButton>
+                </form>
+              ) : null}
+
               <div className="grid gap-2">
                 {state.players.map((player, index) => (
                   <div
-                    className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.07] px-3 py-2"
+                    className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.07] px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                     key={player.id}
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 grid gap-2">
                       <p className="text-xs font-semibold text-emerald-50/55">
                         Position {player.position}
+                        {player.userId === null ? " / Gast" : ""}
                       </p>
-                      <p className="truncate font-semibold text-white">
-                        {player.displayName}
-                      </p>
+                      {isOwner ? (
+                        <form
+                          action={renamePlayerAction.bind(null, player.id)}
+                          className="flex min-w-0 gap-2"
+                        >
+                          <input
+                            aria-label={`${player.displayName} umbenennen`}
+                            className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-sm font-semibold text-white outline-none transition-colors placeholder:text-emerald-50/40 focus:border-brass/70 focus:ring-4 focus:ring-brass/15"
+                            defaultValue={player.displayName}
+                            maxLength={30}
+                            name="displayName"
+                            required
+                            type="text"
+                          />
+                          <SubmitButton
+                            className="min-h-10 px-3 py-2"
+                            pendingLabel="..."
+                          >
+                            <Save aria-hidden="true" className="h-4 w-4" />
+                            <span className="sr-only">Speichern</span>
+                          </SubmitButton>
+                        </form>
+                      ) : (
+                        <p className="truncate font-semibold text-white">
+                          {player.displayName}
+                        </p>
+                      )}
                     </div>
                     {isOwner ? (
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <form action={movePlayerAction.bind(null, player.id, "up")}>
                           <Button
                             aria-label={`${player.displayName} nach oben`}
@@ -518,6 +566,18 @@ export function GameLobby({
                             <ArrowDown aria-hidden="true" className="h-4 w-4" />
                           </Button>
                         </form>
+                        {player.userId === null ? (
+                          <form action={removeGuestPlayerAction.bind(null, player.id)}>
+                            <Button
+                              aria-label={`${player.displayName} entfernen`}
+                              size="sm"
+                              type="submit"
+                              variant="danger"
+                            >
+                              <Trash2 aria-hidden="true" className="h-4 w-4" />
+                            </Button>
+                          </form>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -798,15 +858,15 @@ export function GameLobby({
         </motion.section>
       ) : null}
 
-      {userTurn ? (
+      {canManageTurn ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:hidden">
           <div className="mx-auto flex max-w-xl items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-brass">
-                Du bist dran
+                {userTurn ? "Du bist dran" : "Admin verwaltet"}
               </p>
               <p className="truncate text-sm font-semibold text-white">
-                Zug fortsetzen
+                {currentPlayer ? `${currentPlayer.displayName} eintragen` : "Zug fortsetzen"}
               </p>
             </div>
             <Button className="min-h-12 px-6" onClick={onOpenTurn} type="button">

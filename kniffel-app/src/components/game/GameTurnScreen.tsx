@@ -9,7 +9,12 @@ import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
 import { ScoreEntryForm } from "@/components/game/ScoreEntryForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { getFilledCategoryCount, getNextPlayer, getPlayerScoreCard, isUserTurn } from "@/game/game-state";
+import {
+  canUserManageCurrentTurn,
+  getFilledCategoryCount,
+  getNextPlayer,
+  getPlayerScoreCard
+} from "@/game/game-state";
 import { scoreCategories } from "@/game/scorecard";
 import type { GameState } from "@/game/state";
 import { cn } from "@/lib/cn";
@@ -59,11 +64,9 @@ export function GameTurnScreen({
   const viewedPlayer = state.players.find((player) => player.id === viewedPlayerId);
   const viewedPlayerScoreCard = viewedPlayer ? getPlayerScoreCard(state, viewedPlayer.id) : null;
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
-  const currentUserScoreCard = currentUserPlayer
-    ? getPlayerScoreCard(state, currentUserPlayer.id)
-    : null;
-  const userTurn = isUserTurn(state, currentUserId);
-  const filledCount = getFilledCategoryCount(currentUserScoreCard);
+  const activeScoreCard = currentPlayer ? getPlayerScoreCard(state, currentPlayer.id) : null;
+  const canManageTurn = canUserManageCurrentTurn(state, currentUserId);
+  const filledCount = getFilledCategoryCount(activeScoreCard);
   const viewedTotal = viewedPlayerScoreCard?.total ?? 0;
 
   function updateViewedPlayerFromScroll() {
@@ -173,10 +176,10 @@ export function GameTurnScreen({
   }, [state.currentPlayerId]);
 
   useEffect(() => {
-    if (userTurn && !rollMode) {
+    if (canManageTurn && !rollMode) {
       setShowRollModePicker(true);
     }
-  }, [rollMode, userTurn]);
+  }, [canManageTurn, rollMode]);
 
   useEffect(() => {
     if (state.players.some((player) => player.id === viewedPlayerId)) {
@@ -346,7 +349,7 @@ export function GameTurnScreen({
         </div>
       </div>
 
-      {userTurn && currentUserScoreCard ? (
+      {canManageTurn && activeScoreCard ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -354,7 +357,7 @@ export function GameTurnScreen({
                 {filledCount}/{scoreCategories.length} Felder belegt
               </p>
               <p className="truncate text-sm font-semibold text-white">
-                Kategorie eintragen
+                Fuer {currentPlayer?.displayName ?? "Spieler"} eintragen
               </p>
             </div>
             <Button className="min-h-12 px-6" onClick={() => setEntryOpen(true)} type="button">
@@ -417,7 +420,7 @@ export function GameTurnScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {entryOpen && currentUserScoreCard ? (
+        {entryOpen && canManageTurn && activeScoreCard ? (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             className="fixed inset-0 z-[60] overflow-y-auto bg-emerald-950 text-white"
@@ -436,7 +439,7 @@ export function GameTurnScreen({
                     Eintragen
                   </p>
                   <h2 className="truncate text-lg font-semibold tracking-tight text-white">
-                    Wuerfel und Kategorie
+                    {currentPlayer?.displayName ?? "Wuerfel und Kategorie"}
                   </h2>
                 </div>
                 <button
@@ -459,7 +462,7 @@ export function GameTurnScreen({
                   setEntryOpen(false);
                   onSaved();
                 }}
-                scoreCard={currentUserScoreCard}
+                scoreCard={activeScoreCard}
               />
             </div>
           </motion.div>
@@ -467,7 +470,7 @@ export function GameTurnScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {showRollModePicker ? (
+        {showRollModePicker && canManageTurn ? (
           <motion.div
             animate={{ opacity: 1 }}
             className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 backdrop-blur-sm"
