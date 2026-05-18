@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import useEmblaCarousel from "embla-carousel-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft, CheckCircle2, Dices, FilePenLine, Smartphone, Trophy, X } from "lucide-react";
 
@@ -53,11 +54,18 @@ export function GameTurnScreen({
       state.players[0]?.id ??
       ""
   );
-  const playerCardRefs = useRef<Record<string, HTMLElement | null>>({});
-  const playerRowRef = useRef<HTMLDivElement | null>(null);
+  const playerIds = state.players.map((player) => player.id);
+  const playerIdsKey = playerIds.join("|");
+  const canLoopPlayers = state.players.length > 1;
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    align: "center",
+    loop: canLoopPlayers,
+    skipSnaps: false
+  });
+  const playersRef = useRef(state.players);
   const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
+  const previousPlayerIdsKeyRef = useRef(playerIdsKey);
   const hasInitialAutoScrollRef = useRef(false);
-  const scrollFrameRef = useRef<number | null>(null);
   const turnFeedbackTimeoutRef = useRef<number | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
@@ -69,50 +77,17 @@ export function GameTurnScreen({
   const filledCount = getFilledCategoryCount(activeScoreCard);
   const viewedTotal = viewedPlayerScoreCard?.total ?? 0;
 
-  function updateViewedPlayerFromScroll() {
-    const playerRow = playerRowRef.current;
-
-    if (!playerRow) {
+  const handleEmblaSelect = useCallback(() => {
+    if (!emblaApi) {
       return;
     }
 
-    const rowRect = playerRow.getBoundingClientRect();
-    const rowCenter = rowRect.left + rowRect.width / 2;
-    let nearestPlayerId = viewedPlayerId;
-    let nearestDistance = Number.POSITIVE_INFINITY;
+    const selectedPlayer = playersRef.current[emblaApi.selectedScrollSnap()];
 
-    state.players.forEach((player) => {
-      const card = playerCardRefs.current[player.id];
-
-      if (!card) {
-        return;
-      }
-
-      const cardRect = card.getBoundingClientRect();
-      const cardCenter = cardRect.left + cardRect.width / 2;
-      const distance = Math.abs(cardCenter - rowCenter);
-
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestPlayerId = player.id;
-      }
-    });
-
-    if (nearestPlayerId && nearestPlayerId !== viewedPlayerId) {
-      setViewedPlayerId(nearestPlayerId);
+    if (selectedPlayer) {
+      setViewedPlayerId(selectedPlayer.id);
     }
-  }
-
-  function handlePlayerRowScroll() {
-    if (scrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(scrollFrameRef.current);
-    }
-
-    scrollFrameRef.current = window.requestAnimationFrame(() => {
-      updateViewedPlayerFromScroll();
-      scrollFrameRef.current = null;
-    });
-  }
+  }, [emblaApi]);
 
   function showSavedFeedback() {
     const nextPlayer = getNextPlayer(state);
@@ -136,44 +111,59 @@ export function GameTurnScreen({
   }
 
   useEffect(() => {
-    const playerChanged = previousCurrentPlayerIdRef.current !== state.currentPlayerId;
+    playersRef.current = state.players;
+  }, [state.players]);
 
-    if (!playerChanged && hasInitialAutoScrollRef.current) {
+  useEffect(() => {
+    if (!emblaApi) {
+      return;
+    }
+
+    handleEmblaSelect();
+    emblaApi.on("select", handleEmblaSelect);
+    emblaApi.on("reInit", handleEmblaSelect);
+
+    return () => {
+      emblaApi.off("select", handleEmblaSelect);
+      emblaApi.off("reInit", handleEmblaSelect);
+    };
+  }, [emblaApi, handleEmblaSelect]);
+
+  useEffect(() => {
+    if (!emblaApi) {
+      return;
+    }
+
+    emblaApi.reInit();
+  }, [emblaApi, playerIdsKey]);
+
+  useEffect(() => {
+    if (!emblaApi || !state.currentPlayerId) {
+      return;
+    }
+
+    const playerChanged = previousCurrentPlayerIdRef.current !== state.currentPlayerId;
+    const playerOrderChanged = previousPlayerIdsKeyRef.current !== playerIdsKey;
+
+    if (!playerChanged && !playerOrderChanged && hasInitialAutoScrollRef.current) {
       return;
     }
 
     previousCurrentPlayerIdRef.current = state.currentPlayerId;
+    previousPlayerIdsKeyRef.current = playerIdsKey;
     hasInitialAutoScrollRef.current = true;
 
-    const frameId = window.requestAnimationFrame(() => {
-      if (!state.currentPlayerId) {
-        return;
-      }
+    const currentPlayerIndex = playersRef.current.findIndex(
+      (player) => player.id === state.currentPlayerId
+    );
 
-      const activeCard = playerCardRefs.current[state.currentPlayerId];
-      const playerRow = playerRowRef.current;
+    if (currentPlayerIndex === -1) {
+      return;
+    }
 
-      if (!activeCard || !playerRow) {
-        return;
-      }
-
-      const maxScrollLeft = Math.max(0, playerRow.scrollWidth - playerRow.clientWidth);
-      const centeredLeft =
-        activeCard.offsetLeft - (playerRow.clientWidth - activeCard.offsetWidth) / 2;
-      const nextLeft = Math.min(Math.max(centeredLeft, 0), maxScrollLeft);
-
-      setViewedPlayerId(state.currentPlayerId);
-
-      playerRow.scrollTo({
-        behavior: "smooth",
-        left: nextLeft
-      });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [state.currentPlayerId]);
+    setViewedPlayerId(state.currentPlayerId);
+    emblaApi.scrollTo(currentPlayerIndex, shouldReduceMotion === true);
+  }, [emblaApi, playerIdsKey, shouldReduceMotion, state.currentPlayerId]);
 
   useEffect(() => {
     if (canManageTurn && !rollMode) {
@@ -191,10 +181,6 @@ export function GameTurnScreen({
 
   useEffect(() => {
     return () => {
-      if (scrollFrameRef.current !== null) {
-        window.cancelAnimationFrame(scrollFrameRef.current);
-      }
-
       if (turnFeedbackTimeoutRef.current !== null) {
         window.clearTimeout(turnFeedbackTimeoutRef.current);
       }
@@ -237,72 +223,78 @@ export function GameTurnScreen({
           </div>
         </div>
 
-        <div
-          className="overflow-x-auto px-1 pb-3 [scroll-padding-inline:1.25rem] [scroll-snap-type:x_mandatory] sm:px-0"
-          onScroll={handlePlayerRowScroll}
-          ref={playerRowRef}
-        >
-          <div className="flex gap-4 px-1 sm:px-0">
+        <div className="-mx-4 overflow-hidden px-4 pb-3 sm:mx-0 sm:px-0" ref={emblaRef}>
+          <div className="flex touch-pan-y gap-4">
             {state.players.map((player) => {
               const scoreCard = getPlayerScoreCard(state, player.id);
               const active = player.id === state.currentPlayerId;
+              const viewed = player.id === viewedPlayerId;
               const own = player.id === currentUserPlayer?.id;
 
               return (
-                <motion.article
-                  animate={
-                    shouldReduceMotion
-                      ? { opacity: 1 }
-                      : { opacity: active ? 1 : 0.78, scale: active ? 1 : 0.985, y: active ? -2 : 0 }
-                  }
-                  className={cn(
-                    "relative w-[min(calc(100vw-2.75rem),28rem)] shrink-0 overflow-hidden rounded-lg border p-4 shadow-[0_16px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl [scroll-snap-align:center]",
-                    active
-                      ? "border-brass/45 bg-[linear-gradient(145deg,rgba(244,185,66,0.16),rgba(255,255,255,0.09))]"
-                      : "border-white/10 bg-white/[0.07]"
-                  )}
+                <div
+                  className="min-w-0 shrink-0 grow-0"
                   key={player.id}
-                  layout="position"
-                  ref={(element) => {
-                    playerCardRefs.current[player.id] = element;
-                  }}
-                  transition={
-                    shouldReduceMotion
-                      ? { duration: 0.01 }
-                      : { damping: 28, stiffness: 360, type: "spring" }
-                  }
+                  style={{ flexBasis: "min(calc(100vw - 2rem), 28rem)" }}
                 >
-                  {active ? (
-                    <motion.span
-                      aria-hidden="true"
-                      animate={
-                        shouldReduceMotion
-                          ? { opacity: 0.35 }
-                          : { opacity: [0.22, 0.42, 0.22], scale: [0.96, 1.04, 0.96] }
-                      }
-                      className="absolute -right-10 -top-12 h-32 w-32 rounded-full bg-brass/20 blur-2xl"
-                      transition={
-                        shouldReduceMotion
-                          ? { duration: 0.01 }
-                          : { duration: 2.8, ease: "easeInOut", repeat: Infinity }
-                      }
-                    />
-                  ) : null}
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="truncate text-lg font-semibold text-white">
-                        {player.displayName}
-                      </h2>
-                      <p className="mt-0.5 text-xs text-emerald-50/60">
-                        Position {player.position}
-                      </p>
+                  <motion.article
+                    animate={
+                      shouldReduceMotion
+                        ? { opacity: 1 }
+                        : {
+                            opacity: viewed ? 1 : 0.52,
+                            scale: viewed ? 1 : 0.93,
+                            y: viewed ? (active ? -4 : -2) : 12
+                          }
+                    }
+                    className={cn(
+                      "relative h-full overflow-hidden rounded-lg border p-4 shadow-[0_16px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl will-change-transform",
+                      active
+                        ? "border-brass/45 bg-[linear-gradient(145deg,rgba(244,185,66,0.16),rgba(255,255,255,0.09))]"
+                        : viewed
+                          ? "border-emerald-300/25 bg-white/[0.1]"
+                          : "border-white/10 bg-white/[0.06]"
+                    )}
+                    initial={false}
+                    layout="position"
+                    transition={
+                      shouldReduceMotion
+                        ? { duration: 0.01 }
+                        : { damping: 24, mass: 0.9, stiffness: 260, type: "spring" }
+                    }
+                  >
+                    {active ? (
+                      <motion.span
+                        aria-hidden="true"
+                        animate={
+                          shouldReduceMotion
+                            ? { opacity: 0.35 }
+                            : { opacity: [0.22, 0.42, 0.22], scale: [0.96, 1.04, 0.96] }
+                        }
+                        className="absolute -right-10 -top-12 h-32 w-32 rounded-full bg-brass/20 blur-2xl"
+                        transition={
+                          shouldReduceMotion
+                            ? { duration: 0.01 }
+                            : { duration: 2.8, ease: "easeInOut", repeat: Infinity }
+                        }
+                      />
+                    ) : null}
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="truncate text-lg font-semibold text-white">
+                          {player.displayName}
+                        </h2>
+                        <p className="mt-0.5 text-xs text-emerald-50/60">
+                          Position {player.position}
+                        </p>
+                      </div>
+                      <Badge variant={active ? "success" : own ? "accent" : "neutral"}>
+                        {active ? "am Zug" : own ? "du" : `${scoreCard?.total ?? 0}`}
+                      </Badge>
                     </div>
-                    <Badge variant={active ? "success" : own ? "accent" : "neutral"}>
-                      {active ? "am Zug" : own ? "du" : `${scoreCard?.total ?? 0}`}
-                    </Badge>
-                  </div>
-                  <ScoreCardBlock compact scoreCard={scoreCard} />
-                </motion.article>
+                    <ScoreCardBlock compact scoreCard={scoreCard} />
+                  </motion.article>
+                </div>
               );
             })}
           </div>
