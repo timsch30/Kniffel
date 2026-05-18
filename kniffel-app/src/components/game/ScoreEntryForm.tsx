@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { gsap } from "gsap";
 import {
   Calculator,
   CheckCircle2,
@@ -19,7 +20,7 @@ import { Dice } from "@/components/game/Dice";
 import { DiceInput } from "@/components/game/DiceInput";
 import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
 import { SubmitButton } from "@/components/ui/SubmitButton";
-import { scoreCategories, scoreCategoryLabels } from "@/game/scorecard";
+import { scoreCategories, scoreCategoryLabels, upperScoreCategories } from "@/game/scorecard";
 import {
   calculateScoreForCategory,
   getAvailableScoreSuggestions,
@@ -32,8 +33,13 @@ type ScoreEntryFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   initialDiceValues?: number[];
   onlineRollMode?: boolean;
-  onSaved?: () => void;
+  onSaved?: (feedback?: ScoreSaveFeedback) => void;
   scoreCard: ScoreCard;
+};
+
+export type ScoreSaveFeedback = {
+  bonusAwarded: boolean;
+  upperScore: number;
 };
 
 type EntryMode = "dice" | "manual";
@@ -116,6 +122,10 @@ function isCategoryUsed(scoreCard: ScoreCard, category: ScoreCategory): boolean 
   return scoreCard[category] !== null && scoreCard[category] !== undefined;
 }
 
+function getUpperScore(scoreCard: ScoreCard): number {
+  return upperScoreCategories.reduce((sum, category) => sum + (scoreCard[category] ?? 0), 0);
+}
+
 export function ScoreEntryForm({
   action,
   initialDiceValues = EMPTY_DICE_VALUES,
@@ -134,6 +144,11 @@ export function ScoreEntryForm({
   const previousMotionSampleRef = useRef<MotionSample | null>(null);
   const rollAnimationRef = useRef<number | null>(null);
   const rollFinishRef = useRef<number | null>(null);
+  const diceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const kniffelBurstRef = useRef<HTMLDivElement | null>(null);
+  const pendingLandingDiceValuesRef = useRef<number[] | null>(null);
+  const diceLandingTimelineRef = useRef<gsap.core.Timeline | null>(null);
+  const diceRollTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const [heldDice, setHeldDice] = useState<boolean[]>(INITIAL_HELD_DICE);
   const [isRolling, setIsRolling] = useState(false);
   const [motionPermission, setMotionPermission] = useState<MotionPermissionStatus>("unsupported");
@@ -141,6 +156,180 @@ export function ScoreEntryForm({
   const [rollCount, setRollCount] = useState(initialDiceValues.length === 5 ? 1 : 0);
   const [shakeSensitivity, setShakeSensitivity] = useState(2);
   const shouldReduceMotion = useReducedMotion();
+
+  const playDiceRollAnimation = useCallback(() => {
+    diceRollTimelineRef.current?.kill();
+    diceRollTimelineRef.current = null;
+    diceLandingTimelineRef.current?.kill();
+    diceLandingTimelineRef.current = null;
+
+    if (shouldReduceMotion) {
+      return;
+    }
+
+    const rollingButtons = diceButtonRefs.current.filter(
+      (element, index): element is HTMLButtonElement => Boolean(element) && !heldDice[index]
+    );
+
+    if (rollingButtons.length === 0) {
+      return;
+    }
+
+    gsap.set(rollingButtons, {
+      transformOrigin: "50% 50%",
+      willChange: "transform"
+    });
+
+    const timeline = gsap.timeline({
+      defaults: { ease: "power2.inOut" },
+      onComplete: () => {
+        gsap.set(rollingButtons, { clearProps: "transform,willChange" });
+        diceRollTimelineRef.current = null;
+      }
+    });
+
+    timeline
+      .to(rollingButtons, {
+        duration: 0.18,
+        keyframes: [
+          { rotate: 18, scale: 1.08, y: -14 },
+          { rotate: -16, scale: 0.98, y: 7 }
+        ],
+        stagger: 0.035
+      })
+      .to(
+        rollingButtons,
+        {
+          duration: 0.52,
+          keyframes: [
+            { rotate: 32, x: 3, y: -18 },
+            { rotate: -28, x: -3, y: 9 },
+            { rotate: 20, x: 2, y: -10 },
+            { rotate: -12, x: -2, y: 5 }
+          ],
+          stagger: {
+            amount: 0.16,
+            from: "edges"
+          }
+        },
+        0.12
+      )
+      .to(rollingButtons, {
+        duration: 0.24,
+        ease: "back.out(2.4)",
+        rotate: 0,
+        scale: 1,
+        x: 0,
+        y: 0,
+        stagger: 0.025
+      });
+
+    diceRollTimelineRef.current = timeline;
+  }, [heldDice, shouldReduceMotion]);
+
+  const playDiceLandingAnimation = useCallback(
+    (finalValues: number[]) => {
+      diceLandingTimelineRef.current?.kill();
+      diceLandingTimelineRef.current = null;
+
+      if (shouldReduceMotion) {
+        return;
+      }
+
+      const allButtons = diceButtonRefs.current.filter(
+        (element): element is HTMLButtonElement => Boolean(element)
+      );
+      const landingButtons = diceButtonRefs.current.filter(
+        (element, index): element is HTMLButtonElement => Boolean(element) && !heldDice[index]
+      );
+      const isKniffel =
+        finalValues.length === DICE_COUNT && finalValues.every((value) => value === finalValues[0]);
+
+      if (allButtons.length === 0 || (landingButtons.length === 0 && !isKniffel)) {
+        return;
+      }
+
+      const animatedButtons = Array.from(
+        new Set([...landingButtons, ...(isKniffel ? allButtons : [])])
+      );
+
+      gsap.set(animatedButtons, {
+        transformOrigin: "50% 80%",
+        willChange: "transform, filter, box-shadow"
+      });
+
+      const timeline = gsap.timeline({
+        onComplete: () => {
+          gsap.set(animatedButtons, { clearProps: "transform,filter,boxShadow,willChange" });
+          if (kniffelBurstRef.current) {
+            gsap.set(kniffelBurstRef.current, { clearProps: "opacity,transform,visibility" });
+          }
+          diceLandingTimelineRef.current = null;
+        }
+      });
+
+      if (landingButtons.length > 0) {
+        timeline.fromTo(
+          landingButtons,
+          { rotate: -7, scale: 1.08, y: -16 },
+          {
+            duration: 0.42,
+            ease: "bounce.out",
+            rotate: 0,
+            scale: 1,
+            y: 0,
+            stagger: 0.045
+          },
+          0
+        );
+      }
+
+      if (isKniffel) {
+        timeline
+          .to(
+            allButtons,
+            {
+              boxShadow:
+                "0 0 0 3px rgba(244,185,66,0.62), 0 18px 48px rgba(244,185,66,0.28)",
+              duration: 0.2,
+              ease: "power2.out",
+              filter: "brightness(1.22)",
+              stagger: 0.035
+            },
+            0.16
+          )
+          .to(
+            allButtons,
+            {
+              boxShadow: "0 0 0 0 rgba(244,185,66,0)",
+              duration: 0.5,
+              ease: "power2.out",
+              filter: "brightness(1)",
+              stagger: 0.02
+            },
+            ">0.08"
+          );
+
+        if (kniffelBurstRef.current) {
+          timeline
+            .fromTo(
+              kniffelBurstRef.current,
+              { autoAlpha: 0, scale: 0.72, y: 10 },
+              { autoAlpha: 1, duration: 0.24, ease: "back.out(2.6)", scale: 1, y: -4 },
+              0.18
+            )
+            .to(
+              kniffelBurstRef.current,
+              { autoAlpha: 0, duration: 0.42, ease: "power2.in", scale: 1.08, y: -18 },
+              ">0.38"
+            );
+        }
+      }
+
+      diceLandingTimelineRef.current = timeline;
+    },
+    [heldDice, shouldReduceMotion]
+  );
 
   useEffect(() => {
     setDiceValues((previous) => {
@@ -156,6 +345,7 @@ export function ScoreEntryForm({
     setHeldDice((previous) => (previous.every((held) => !held) ? previous : INITIAL_HELD_DICE));
     setRollingDiceValues([]);
     setIsRolling(false);
+    pendingLandingDiceValuesRef.current = null;
     setRollCount((previous) => {
       const nextRollCount = initialDiceValues.length === 5 ? 1 : 0;
       return previous === nextRollCount ? previous : nextRollCount;
@@ -168,6 +358,7 @@ export function ScoreEntryForm({
     }
 
     setIsRolling(true);
+    playDiceRollAnimation();
 
     const buildNextValues = (previous: number[]) => {
       const values = previous.length === DICE_COUNT ? previous : createRandomDiceValues();
@@ -192,13 +383,29 @@ export function ScoreEntryForm({
 
       setDiceValues((previous) => {
         const nextValues = buildNextValues(previous);
+        pendingLandingDiceValuesRef.current = nextValues;
         setRollingDiceValues(nextValues);
         return nextValues;
       });
       setRollCount((previous) => previous + 1);
       setIsRolling(false);
     }, ROLL_ANIMATION_DURATION_MS);
-  }, [diceValues, heldDice, isRolling, rollCount]);
+  }, [diceValues, heldDice, isRolling, playDiceRollAnimation, rollCount]);
+
+  useEffect(() => {
+    if (isRolling || pendingLandingDiceValuesRef.current === null) {
+      return;
+    }
+
+    const finalValues = pendingLandingDiceValuesRef.current;
+    pendingLandingDiceValuesRef.current = null;
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      playDiceLandingAnimation(finalValues);
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [diceValues, isRolling, playDiceLandingAnimation]);
 
   useEffect(() => {
     return () => {
@@ -209,6 +416,9 @@ export function ScoreEntryForm({
       if (rollFinishRef.current !== null) {
         window.clearTimeout(rollFinishRef.current);
       }
+
+      diceLandingTimelineRef.current?.kill();
+      diceRollTimelineRef.current?.kill();
     };
   }, []);
 
@@ -368,49 +578,23 @@ export function ScoreEntryForm({
   }
 
   async function submit(formData: FormData) {
+    const category = confirmationCategory ?? selectedCategory;
+    const nextScoreCard =
+      category && selectedScore !== null
+        ? {
+            ...scoreCard,
+            [category]: selectedScore
+          }
+        : scoreCard;
+    const previousUpperScore = getUpperScore(scoreCard);
+    const nextUpperScore = getUpperScore(nextScoreCard);
+    const bonusAwarded = previousUpperScore < 63 && nextUpperScore >= 63;
+
     await action(formData);
-    onSaved?.();
-  }
-
-  function getDiceButtonAnimate(index: number, held: boolean) {
-    if (shouldReduceMotion) {
-      return { rotate: 0, scale: held ? 0.97 : 1, y: 0 };
-    }
-
-    if (isRolling && !held) {
-      const direction = index % 2 === 0 ? 1 : -1;
-
-      return {
-        rotate: [0, 12 * direction, -10 * direction, 0],
-        scale: [1, 1.08, 0.96, 1.02],
-        y: [0, -12, 5, 0]
-      };
-    }
-
-    return { rotate: 0, scale: held ? 0.96 : 1, y: 0 };
-  }
-
-  function getDiceButtonTransition(index: number, held: boolean) {
-    if (shouldReduceMotion) {
-      return { duration: 0.01 };
-    }
-
-    if (isRolling && !held) {
-      return {
-        delay: index * 0.035,
-        duration: 0.48,
-        ease: "easeInOut" as const,
-        repeat: Infinity,
-        repeatType: "mirror" as const
-      };
-    }
-
-    return {
-      damping: 24,
-      mass: 0.75,
-      stiffness: 520,
-      type: "spring" as const
-    };
+    onSaved?.({
+      bonusAwarded,
+      upperScore: nextUpperScore
+    });
   }
 
   const parsedManualPoints = Number(manualPoints);
@@ -538,10 +722,18 @@ export function ScoreEntryForm({
                 </div>
 
                 <div className="relative rounded-lg border border-white/15 bg-black/25 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),inset_0_-24px_48px_rgba(0,0,0,0.18)]">
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 top-1/2 z-20 grid -translate-y-1/2 place-items-center opacity-0"
+                    ref={kniffelBurstRef}
+                  >
+                    <span className="rounded-full border border-brass/50 bg-emerald-950/90 px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-brass shadow-[0_18px_54px_rgba(244,185,66,0.26)] backdrop-blur-sm">
+                      Kniffel
+                    </span>
+                  </div>
                   <div className="grid grid-cols-5 gap-2.5 sm:gap-3">
                     {diceSlots.map((value, index) => (
-                      <motion.button
-                        animate={getDiceButtonAnimate(index, heldDice[index])}
+                      <button
                         aria-label={
                           rollCount === 0
                             ? `Wuerfel ${index + 1}: noch nicht gewuerfelt`
@@ -560,11 +752,10 @@ export function ScoreEntryForm({
                         disabled={rollCount === 0 || isRolling}
                         key={index}
                         onClick={() => toggleHeld(index)}
-                        transition={getDiceButtonTransition(index, heldDice[index])}
+                        ref={(element) => {
+                          diceButtonRefs.current[index] = element;
+                        }}
                         type="button"
-                        whileTap={
-                          shouldReduceMotion || rollCount === 0 || isRolling ? undefined : { scale: 0.94 }
-                        }
                       >
                         <span className="sr-only">
                           {rollCount === 0 ? "Noch nicht gewuerfelt" : "Wuerfel halten"}
@@ -578,7 +769,7 @@ export function ScoreEntryForm({
                             <LockKeyhole className="h-3 w-3" />
                           </span>
                         ) : null}
-                      </motion.button>
+                      </button>
                     ))}
                   </div>
                 </div>

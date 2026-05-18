@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import useEmblaCarousel from "embla-carousel-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { gsap } from "gsap";
 import { ArrowLeft, CheckCircle2, Dices, FilePenLine, Smartphone, Trophy, X } from "lucide-react";
 
 import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
-import { ScoreEntryForm } from "@/components/game/ScoreEntryForm";
+import { ScoreEntryForm, type ScoreSaveFeedback } from "@/components/game/ScoreEntryForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import {
@@ -29,11 +30,13 @@ type GameTurnScreenProps = {
 };
 
 type TurnFeedback = {
+  bonusAwarded: boolean;
   id: number;
   leaderName?: string;
   nextIsCurrentUser: boolean;
   nextPlayerName: string;
   roundNumber: number;
+  upperScore?: number;
 };
 
 export function GameTurnScreen({
@@ -66,6 +69,7 @@ export function GameTurnScreen({
   const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
   const previousPlayerIdsKeyRef = useRef(playerIdsKey);
   const hasInitialAutoScrollRef = useRef(false);
+  const turnBonusRef = useRef<HTMLSpanElement | null>(null);
   const turnFeedbackTimeoutRef = useRef<number | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
@@ -89,7 +93,7 @@ export function GameTurnScreen({
     }
   }, [emblaApi]);
 
-  function showSavedFeedback() {
+  function showSavedFeedback(scoreFeedback?: ScoreSaveFeedback) {
     const nextPlayer = getNextPlayer(state);
 
     if (turnFeedbackTimeoutRef.current !== null) {
@@ -97,11 +101,13 @@ export function GameTurnScreen({
     }
 
     setTurnFeedback({
+      bonusAwarded: scoreFeedback?.bonusAwarded ?? false,
       id: Date.now(),
       leaderName: state.ranking[0]?.displayName,
       nextIsCurrentUser: nextPlayer?.userId === currentUserId,
       nextPlayerName: nextPlayer?.displayName ?? "naechster Spieler",
-      roundNumber: state.roundNumber
+      roundNumber: state.roundNumber,
+      upperScore: scoreFeedback?.upperScore
     });
 
     turnFeedbackTimeoutRef.current = window.setTimeout(() => {
@@ -109,6 +115,28 @@ export function GameTurnScreen({
       turnFeedbackTimeoutRef.current = null;
     }, shouldReduceMotion ? 1000 : 1350);
   }
+
+  useEffect(() => {
+    if (!turnFeedback?.bonusAwarded || !turnBonusRef.current || shouldReduceMotion) {
+      return;
+    }
+
+    gsap.fromTo(
+      turnBonusRef.current,
+      {
+        boxShadow: "0 0 0 0 rgba(244,185,66,0)",
+        scale: 0.82,
+        y: 8
+      },
+      {
+        boxShadow: "0 0 0 5px rgba(244,185,66,0.22), 0 18px 48px rgba(244,185,66,0.26)",
+        duration: 0.58,
+        ease: "back.out(2.3)",
+        scale: 1,
+        y: 0
+      }
+    );
+  }, [shouldReduceMotion, turnFeedback]);
 
   useEffect(() => {
     playersRef.current = state.players;
@@ -188,7 +216,7 @@ export function GameTurnScreen({
   }, []);
 
   return (
-    <section className="relative -mx-4 min-h-[100svh] overflow-hidden px-4 pb-32 pt-3 text-white sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-white/10 sm:bg-white/[0.06] sm:p-5 sm:pb-32 sm:shadow-[0_28px_90px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl">
+    <section className="relative -mx-4 min-h-[100svh] overflow-hidden px-4 pb-32 pt-0 text-white sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-white/10 sm:bg-white/[0.06] sm:px-5 sm:pb-32 sm:pt-0 sm:shadow-[0_28px_90px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(244,185,66,0.14),transparent_28rem),radial-gradient(circle_at_15%_18%,rgba(16,185,129,0.15),transparent_24rem)]"
@@ -389,14 +417,27 @@ export function GameTurnScreen({
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">Score gespeichert</p>
                   <p className="mt-1 text-sm text-emerald-50/75">
-                    {turnFeedback.nextIsCurrentUser
-                      ? "Du bist wieder dran."
-                      : `Weiter: ${turnFeedback.nextPlayerName}`}
+                    {turnFeedback.bonusAwarded
+                      ? `Oberer Bonus erreicht. Weiter: ${turnFeedback.nextPlayerName}`
+                      : turnFeedback.nextIsCurrentUser
+                        ? "Du bist wieder dran."
+                        : `Weiter: ${turnFeedback.nextPlayerName}`}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-emerald-50/70">
                     <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1">
                       Runde {turnFeedback.roundNumber}
                     </span>
+                    {turnFeedback.bonusAwarded ? (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border border-brass/35 bg-brass px-2 py-1 text-emerald-950"
+                        ref={turnBonusRef}
+                      >
+                        +35 Bonus
+                        {turnFeedback.upperScore ? (
+                          <span className="opacity-75">({turnFeedback.upperScore} oben)</span>
+                        ) : null}
+                      </span>
+                    ) : null}
                     {turnFeedback.leaderName ? (
                       <span className="inline-flex items-center gap-1 rounded-full border border-brass/20 bg-brass/[0.12] px-2 py-1 text-amber-100">
                         <Trophy aria-hidden="true" className="h-3.5 w-3.5" />
@@ -449,8 +490,8 @@ export function GameTurnScreen({
               <ScoreEntryForm
                 action={enterScoreAction}
                 onlineRollMode={rollMode === "online"}
-                onSaved={() => {
-                  showSavedFeedback();
+                onSaved={(scoreFeedback) => {
+                  showSavedFeedback(scoreFeedback);
                   setEntryOpen(false);
                   onSaved();
                 }}

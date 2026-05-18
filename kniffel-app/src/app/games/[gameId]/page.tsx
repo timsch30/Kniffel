@@ -54,7 +54,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
   return (
     <>
       <DashboardBackdrop />
-      <PageContainer className="grid gap-4 pb-20 pt-4 sm:gap-5 sm:pt-6" size="xl">
+      <PageContainer className="grid gap-4 pb-20 pt-0 sm:gap-5 sm:pt-0" size="xl">
         <GameView
           addGuestPlayerAction={boundAddGuestPlayerAction}
           currentUserId={user.id}
