@@ -359,6 +359,12 @@ export function ScoreEntryForm({
     setConfirmationCategory(null);
     setRollingDiceValues([]);
     setIsRolling(false);
+    setRollCount(0);
+  }
+
+  function handleDiceInputChange(nextDiceValues: number[]) {
+    setDiceValues(nextDiceValues);
+    setRollCount(isValidDiceValues(nextDiceValues) ? 1 : 0);
   }
 
   async function submit(formData: FormData) {
@@ -413,26 +419,27 @@ export function ScoreEntryForm({
     Number.isInteger(parsedManualPoints) &&
     parsedManualPoints >= 0 &&
     parsedManualPoints <= 100;
+  const validDiceValues = mode === "dice" && isValidDiceValues(diceValues);
+  const canScoreCategory = validDiceValues && rollCount >= 1;
+  const showMainRecommendation = validDiceValues && rollCount === 3;
   const canSubmit =
     selectedCategory !== null &&
-    (mode === "dice" ? diceValues.length === 5 && !isRolling : manualPointsValid);
+    (mode === "dice" ? canScoreCategory && !isRolling : manualPointsValid);
   const selectedLabel = selectedCategory ? scoreCategoryLabels[selectedCategory] : null;
   const selectedScore =
-    selectedCategory && mode === "dice" && isValidDiceValues(diceValues)
+    selectedCategory && mode === "dice" && canScoreCategory
       ? calculateScoreForCategory(selectedCategory, diceValues)
       : manualPointsValid
         ? parsedManualPoints
         : null;
   const selectedIsStrike = selectedScore === 0;
-  const validDiceValues = mode === "dice" && isValidDiceValues(diceValues);
-  const canShowDiceRecommendation = validDiceValues && (!onlineRollMode || rollCount >= 3);
-  const diceSuggestions = canShowDiceRecommendation
+  const diceSuggestions = canScoreCategory
     ? getAvailableScoreSuggestions(scoreCard, diceValues)
     : undefined;
   const recommendedSuggestion =
-    canShowDiceRecommendation ? getRankedScoreSuggestions(scoreCard, diceValues)[0] : undefined;
+    showMainRecommendation ? getRankedScoreSuggestions(scoreCard, diceValues)[0] : undefined;
   const confirmationScore =
-    confirmationCategory && validDiceValues
+    confirmationCategory && canScoreCategory
       ? calculateScoreForCategory(confirmationCategory, diceValues)
       : null;
   const confirmationLabel = confirmationCategory ? scoreCategoryLabels[confirmationCategory] : null;
@@ -675,7 +682,7 @@ export function ScoreEntryForm({
                   <ScoreCardBlock
                     compact
                     onSelectCategory={(category) => {
-                      if (!validDiceValues || isRolling) {
+                      if (!canScoreCategory || isRolling) {
                         return;
                       }
 
@@ -691,7 +698,7 @@ export function ScoreEntryForm({
             </div>
           ) : (
             <div className="grid gap-4">
-              <DiceInput onChange={setDiceValues} values={diceValues} />
+              <DiceInput onChange={handleDiceInputChange} values={diceValues} />
 
               <section className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-3 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-3 px-1">
@@ -733,7 +740,7 @@ export function ScoreEntryForm({
                         </span>
                       </span>
                     </motion.button>
-                  ) : (
+                  ) : !validDiceValues ? (
                     <motion.div
                       animate={{ opacity: 1, y: 0 }}
                       className="rounded-lg border border-dashed border-white/10 bg-white/[0.05] px-3 py-4 text-sm font-medium text-emerald-50/65"
@@ -744,7 +751,7 @@ export function ScoreEntryForm({
                     >
                       Erst 5 Wuerfel waehlen. Danach erscheint hier die beste Option.
                     </motion.div>
-                  )}
+                  ) : null}
                 </AnimatePresence>
 
                 <motion.div
@@ -756,7 +763,7 @@ export function ScoreEntryForm({
                   <ScoreCardBlock
                     compact
                     onSelectCategory={(category) => {
-                      if (!validDiceValues) {
+                      if (!canScoreCategory) {
                         return;
                       }
 
@@ -873,7 +880,7 @@ export function ScoreEntryForm({
               </button>
               <SubmitButton
                 className="min-h-11 px-4"
-                disabled={!validDiceValues || isRolling}
+                disabled={!canScoreCategory || isRolling}
                 pendingLabel="Speichert..."
               >
                 <Save aria-hidden="true" className="h-4 w-4" />

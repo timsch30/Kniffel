@@ -114,7 +114,6 @@ export function SocialDashboard({
   const leaderboard = useMemo(() => calculateLeaderboard(players, games), [games, players]);
   const achievements = useMemo(() => calculateAchievements(userStats), [userStats]);
   const rivals = useMemo(() => calculateRivalStats(games, user, friends), [friends, games, user]);
-  const getFriendStats = (friend: Friend) => calculatePlayerStats(games, friend.id);
 
   return (
     <div className="grid min-w-0 gap-5 overflow-x-hidden text-white">
@@ -248,45 +247,6 @@ export function SocialDashboard({
             </Card>
           </div>
           <div className="grid min-w-0 gap-4">
-            <Card className="min-w-0 !border-white/10 !bg-white/[0.09] p-3 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:p-4">
-              <h2 className="text-lg font-semibold tracking-tight text-white">
-                Freundesvergleich
-              </h2>
-              <div className="mt-4 grid gap-2">
-                {friends.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-white/15 bg-black/15 p-4 text-sm text-emerald-50/70">
-                    Noch keine Freunde.
-                  </div>
-                ) : null}
-                {friends.map((friend) => {
-                  const stats = getFriendStats(friend);
-
-                  return (
-                    <button
-                      className="flex min-h-14 min-w-0 items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:bg-white/10"
-                      key={friend.id}
-                      onClick={() => {
-                        setSelectedFriendId(friend.id);
-                        setActiveTab("friends");
-                      }}
-                      type="button"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-white">
-                          {friend.name}
-                        </span>
-                        <span className="block truncate text-xs text-emerald-50/65">
-                          {stats.gamesWon} Siege / {stats.averagePoints} Schnitt
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-xs font-semibold text-amber-100">
-                        Oeffnen
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
             <AchievementsPanel achievements={achievements} />
           </div>
         </motion.section>
