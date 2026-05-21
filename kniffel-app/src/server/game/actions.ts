@@ -33,6 +33,16 @@ function readString(formData: FormData, name: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readEntryMode(formData: FormData, mode: string): "manual" | "online" | "real" {
+  if (mode === "manual") {
+    return "manual";
+  }
+
+  const entryMode = readString(formData, "entryMode");
+
+  return entryMode === "online" || entryMode === "real" ? entryMode : "real";
+}
+
 function redirectWithError(path: string, error: string): never {
   const separator = path.includes("?") ? "&" : "?";
 
@@ -1286,6 +1296,7 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
   const errorPath = `/games/${gameId}`;
   const categoryValue = readString(formData, "category");
   const mode = readString(formData, "mode");
+  const entryMode = readEntryMode(formData, mode);
   let diceValues: number[] = [];
   let manualPoints: number | null = null;
 
@@ -1389,14 +1400,45 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
         }
       });
 
-      await tx.turn.create({
-        data: {
-          diceValues: mode === "dice" ? diceValues : [],
-          gameId: game.id,
-          playerId: currentPlayer.id,
-          status: "FINISHED"
+      const turnData = {
+        diceValues: mode === "dice" ? diceValues : [],
+        entryCategory: categoryValue,
+        entryMode,
+        entryPoints: points,
+        gameId: game.id,
+        playerId: currentPlayer.id,
+        status: "FINISHED" as const
+      };
+
+      if (entryMode === "online") {
+        const activeTurn = await tx.turn.findFirst({
+          orderBy: {
+            updatedAt: "desc"
+          },
+          where: {
+            gameId: game.id,
+            playerId: currentPlayer.id,
+            status: "ACTIVE"
+          }
+        });
+
+        if (activeTurn) {
+          await tx.turn.update({
+            data: turnData,
+            where: {
+              id: activeTurn.id
+            }
+          });
+        } else {
+          await tx.turn.create({
+            data: turnData
+          });
         }
-      });
+      } else {
+        await tx.turn.create({
+          data: turnData
+        });
+      }
 
       const scoreCardsAfterUpdate = game.scoreCards.map((card) =>
         card.id === updatedScoreCard.id ? updatedScoreCard : card

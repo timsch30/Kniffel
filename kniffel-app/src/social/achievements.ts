@@ -145,6 +145,15 @@ export const achievementDefinitions = [
   },
   {
     category: "points",
+    description: "Erreiche mindestens 330 Punkte.",
+    getValue: (stats) => stats.highestScore,
+    id: "score-330",
+    label: "330 Punkte geknackt",
+    rarity: "epic",
+    target: 330
+  },
+  {
+    category: "points",
     description: "Erreiche mindestens 350 Punkte.",
     getValue: (stats) => stats.highestScore,
     id: "score-350",
@@ -240,6 +249,70 @@ export const achievementDefinitions = [
     id: "perfect-upper-bonus",
     label: "Perfekter Bonus",
     rarity: "epic",
+    target: 1
+  },
+  {
+    category: "points",
+    description: "Beende ein Spiel exakt mit 111 Punkten.",
+    getValue: (stats) => stats.exactScore111Games,
+    id: "exact-111",
+    label: "Schnapszahl 111",
+    rarity: "rare",
+    target: 1
+  },
+  {
+    category: "points",
+    description: "Beende ein Spiel exakt mit 222 Punkten.",
+    getValue: (stats) => stats.exactScore222Games,
+    id: "exact-222",
+    label: "Schnapszahl 222",
+    rarity: "rare",
+    target: 1
+  },
+  {
+    category: "points",
+    description: "Beende ein Spiel exakt mit 333 Punkten.",
+    getValue: (stats) => stats.exactScore333Games,
+    id: "exact-333",
+    label: "Schnapszahl 333",
+    rarity: "epic",
+    target: 1
+  },
+  {
+    category: "points",
+    description: "Beende ein Spiel mit weniger als 150 Punkten.",
+    getValue: (stats) => stats.lowScoreUnder150Games,
+    id: "participant-certificate",
+    label: "Teilnehmerurkunde",
+    rarity: "common",
+    target: 1
+  },
+  {
+    category: "secret",
+    description: "Streiche in einem Spiel alle Kategorien.",
+    getValue: (stats) => stats.allCategoriesStruckGames,
+    hidden: true,
+    id: "all-struck",
+    label: "Alles gestrichen",
+    rarity: "epic",
+    target: 1
+  },
+  {
+    category: "categories",
+    description: "Beende den oberen Block exakt mit 67 Punkten.",
+    getValue: (stats) => stats.exactUpper67Games,
+    id: "upper-67",
+    label: "67 oben",
+    rarity: "rare",
+    target: 1
+  },
+  {
+    category: "categories",
+    description: "Beende den oberen Block exakt mit 69 Punkten.",
+    getValue: (stats) => stats.exactUpper69Games,
+    id: "upper-69",
+    label: "69 oben",
+    rarity: "rare",
     target: 1
   },
   {

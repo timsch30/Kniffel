@@ -11,6 +11,7 @@ import type {
   RivalStats
 } from "@/social/types";
 import { achievementDefinitions } from "@/social/achievements";
+import { scoreCategories, scoreCategoryLabels, upperScoreCategories } from "@/game/scorecard";
 
 function round(value: number, digits = 0): number {
   const factor = 10 ** digits;
@@ -80,6 +81,35 @@ function calculateCategoryStats(games: Game[], playerId: PlayerId) {
   return { bestCategory, favoriteCategory };
 }
 
+const upperScoreLabels = upperScoreCategories.map((category) => scoreCategoryLabels[category]);
+
+function getUpperScoreFromResult(result: {
+  categoryScores: Record<string, number>;
+  upperScore?: number;
+}): number {
+  if (typeof result.upperScore === "number") {
+    return result.upperScore;
+  }
+
+  return upperScoreLabels.reduce((sum, label) => sum + (result.categoryScores[label] ?? 0), 0);
+}
+
+function hasAllCategoriesStruck(result: {
+  categoryScores: Record<string, number>;
+  struckCategoryCount?: number;
+}): boolean {
+  if ((result.struckCategoryCount ?? 0) >= scoreCategories.length) {
+    return true;
+  }
+
+  return scoreCategories.every((category) => {
+    const label = scoreCategoryLabels[category];
+
+    return Object.prototype.hasOwnProperty.call(result.categoryScores, label) &&
+      result.categoryScores[label] === 0;
+  });
+}
+
 export function calculatePlayerStats(games: Game[], playerId: PlayerId): PlayerStats {
   const playerGames = getGamesForPlayer(games, playerId);
   const results = playerGames.flatMap((game) => {
@@ -109,7 +139,12 @@ export function calculatePlayerStats(games: Game[], playerId: PlayerId): PlayerS
     bestGameKniffel,
     currentWinStreak: current,
     doubleKniffelGames: results.filter((result) => result.kniffelCount >= 2).length,
+    exactScore111Games: results.filter((result) => result.score === 111).length,
+    exactScore222Games: results.filter((result) => result.score === 222).length,
+    exactScore333Games: results.filter((result) => result.score === 333).length,
     exactScore375Games: results.filter((result) => result.score === 375).length,
+    exactUpper67Games: results.filter((result) => getUpperScoreFromResult(result) === 67).length,
+    exactUpper69Games: results.filter((result) => getUpperScoreFromResult(result) === 69).length,
     favoriteCategory,
     fullHouseCount,
     gamesPlayed,
@@ -117,8 +152,11 @@ export function calculatePlayerStats(games: Game[], playerId: PlayerId): PlayerS
     highestScore: Math.max(0, ...results.map((result) => result.score)),
     kniffelPerGame: gamesPlayed > 0 ? round(totalKniffel / gamesPlayed, 2) : 0,
     longestWinStreak: longest,
+    lowScoreUnder150Games: results.filter((result) => result.score < 150).length,
     perfectUpperBonusGames: results.filter((result) => (result.upperBonus ?? 0) >= 35).length,
+    score330Games: results.filter((result) => result.score >= 330).length,
     straightBuilderGames,
+    allCategoriesStruckGames: results.filter(hasAllCategoriesStruck).length,
     tripleKniffelGames: results.filter((result) => result.kniffelCount >= 3).length,
     totalKniffel,
     totalPoints,

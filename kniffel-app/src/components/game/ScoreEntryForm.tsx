@@ -33,6 +33,7 @@ type ScoreEntryFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   initialDiceValues?: number[];
   onlineRollMode?: boolean;
+  onOnlineTurnUpdate?: (payload: OnlineTurnUpdatePayload) => void | Promise<void>;
   onSaved?: (feedback?: ScoreSaveFeedback) => void;
   scoreCard: ScoreCard;
 };
@@ -43,6 +44,11 @@ export type ScoreSaveFeedback = {
 };
 
 type EntryMode = "dice" | "manual";
+type OnlineTurnUpdatePayload = {
+  diceValues: number[];
+  heldDice: boolean[];
+  rollCount: number;
+};
 type MotionPermissionStatus =
   | "denied"
   | "granted"
@@ -130,6 +136,7 @@ export function ScoreEntryForm({
   action,
   initialDiceValues = EMPTY_DICE_VALUES,
   onlineRollMode = false,
+  onOnlineTurnUpdate,
   onSaved,
   scoreCard
 }: ScoreEntryFormProps) {
@@ -146,6 +153,7 @@ export function ScoreEntryForm({
   const rollFinishRef = useRef<number | null>(null);
   const diceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const kniffelBurstRef = useRef<HTMLDivElement | null>(null);
+  const onlineTurnInitializedRef = useRef(false);
   const pendingLandingDiceValuesRef = useRef<number[] | null>(null);
   const diceLandingTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const diceRollTimelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -156,6 +164,19 @@ export function ScoreEntryForm({
   const [rollCount, setRollCount] = useState(initialDiceValues.length === 5 ? 1 : 0);
   const [shakeSensitivity, setShakeSensitivity] = useState(2);
   const shouldReduceMotion = useReducedMotion();
+
+  const notifyOnlineTurn = useCallback(
+    (payload: OnlineTurnUpdatePayload) => {
+      if (!onlineRollMode || mode !== "dice" || !onOnlineTurnUpdate) {
+        return;
+      }
+
+      void Promise.resolve(onOnlineTurnUpdate(payload)).catch(() => {
+        // Polling will correct stale live dice state if a transient update fails.
+      });
+    },
+    [mode, onOnlineTurnUpdate, onlineRollMode]
+  );
 
   const playDiceRollAnimation = useCallback(() => {
     diceRollTimelineRef.current?.kill();
@@ -352,6 +373,19 @@ export function ScoreEntryForm({
     });
   }, [initialDiceValues]);
 
+  useEffect(() => {
+    if (!onlineRollMode || mode !== "dice" || onlineTurnInitializedRef.current) {
+      return;
+    }
+
+    onlineTurnInitializedRef.current = true;
+    notifyOnlineTurn({
+      diceValues: isValidDiceValues(diceValues) ? diceValues : [],
+      heldDice,
+      rollCount
+    });
+  }, [diceValues, heldDice, mode, notifyOnlineTurn, onlineRollMode, rollCount]);
+
   const rollDice = useCallback(() => {
     if (isRolling || rollCount >= 3) {
       return;
@@ -381,16 +415,21 @@ export function ScoreEntryForm({
         rollAnimationRef.current = null;
       }
 
-      setDiceValues((previous) => {
-        const nextValues = buildNextValues(previous);
-        pendingLandingDiceValuesRef.current = nextValues;
-        setRollingDiceValues(nextValues);
-        return nextValues;
+      const nextValues = buildNextValues(diceValues);
+      const nextRollCount = Math.min(3, rollCount + 1);
+
+      pendingLandingDiceValuesRef.current = nextValues;
+      setRollingDiceValues(nextValues);
+      setDiceValues(nextValues);
+      setRollCount(nextRollCount);
+      notifyOnlineTurn({
+        diceValues: nextValues,
+        heldDice,
+        rollCount: nextRollCount
       });
-      setRollCount((previous) => previous + 1);
       setIsRolling(false);
     }, ROLL_ANIMATION_DURATION_MS);
-  }, [diceValues, heldDice, isRolling, playDiceRollAnimation, rollCount]);
+  }, [diceValues, heldDice, isRolling, notifyOnlineTurn, playDiceRollAnimation, rollCount]);
 
   useEffect(() => {
     if (isRolling || pendingLandingDiceValuesRef.current === null) {
@@ -502,7 +541,17 @@ export function ScoreEntryForm({
       return;
     }
 
-    setHeldDice((previous) => previous.map((held, position) => (position === index ? !held : held)));
+    const nextHeldDice = heldDice.map((held, position) => (position === index ? !held : held));
+
+    setHeldDice(nextHeldDice);
+
+    if (diceValues.length === DICE_COUNT) {
+      notifyOnlineTurn({
+        diceValues,
+        heldDice: nextHeldDice,
+        rollCount
+      });
+    }
   }
 
   useEffect(() => {
@@ -1030,6 +1079,11 @@ export function ScoreEntryForm({
       )}
 
       <input name="mode" type="hidden" value={mode} />
+      <input
+        name="entryMode"
+        type="hidden"
+        value={mode === "manual" ? "manual" : onlineRollMode ? "online" : "real"}
+      />
       <input name="category" type="hidden" value={confirmationCategory ?? selectedCategory ?? ""} />
       <input name="diceValues" type="hidden" value={JSON.stringify(diceValues)} />
 

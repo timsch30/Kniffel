@@ -1,0 +1,3 @@
+ALTER TABLE "Turn" ADD COLUMN "entryCategory" TEXT;
+ALTER TABLE "Turn" ADD COLUMN "entryPoints" INTEGER;
+ALTER TABLE "Turn" ADD COLUMN "entryMode" TEXT;

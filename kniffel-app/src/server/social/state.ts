@@ -3,8 +3,10 @@ import { requireCurrentUser } from "@/server/auth/session";
 import {
   calculateUpperBonus,
   calculateTotalScore,
+  normalizeStruckCategories,
   scoreCategories,
-  scoreCategoryLabels
+  scoreCategoryLabels,
+  upperScoreCategories
 } from "@/game/scorecard";
 import { expireInactiveActiveGames } from "@/server/game/expiration";
 import type { Friend, Game, GameHighlight, PlayerGameResult } from "@/social/types";
@@ -65,7 +67,34 @@ function toFriend(user: {
   };
 }
 
-function getKniffelCount(scoreCard: { kniffel: number | null }): number {
+function normalizeDiceValues(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isInteger(entry) && entry >= 1 && entry <= 6);
+}
+
+function isKniffelRoll(value: unknown): boolean {
+  const diceValues = normalizeDiceValues(value);
+
+  return diceValues.length === 5 && diceValues.every((entry) => entry === diceValues[0]);
+}
+
+function getKniffelCount(
+  scoreCard: { kniffel: number | null; playerId: string },
+  turns: Array<{ diceValues: unknown; playerId: string | null }>
+): number {
+  const rolledKniffel = turns.filter(
+    (turn) => turn.playerId === scoreCard.playerId && isKniffelRoll(turn.diceValues)
+  ).length;
+
+  if (rolledKniffel > 0) {
+    return rolledKniffel;
+  }
+
   return scoreCard.kniffel && scoreCard.kniffel > 0 ? 1 : 0;
 }
 
@@ -86,6 +115,12 @@ function getCategoryScores(
       scoreCard[category] ?? 0
     ])
   );
+}
+
+function getUpperScore(
+  scoreCard: Partial<Record<(typeof scoreCategories)[number], number | null>>
+): number {
+  return upperScoreCategories.reduce((sum, category) => sum + (scoreCard[category] ?? 0), 0);
 }
 
 function getHighlights(results: PlayerGameResult[]): GameHighlight[] {
@@ -120,7 +155,13 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
           userId: true
         }
       },
-      scoreCards: true
+      scoreCards: true,
+      turns: {
+        select: {
+          diceValues: true,
+          playerId: true
+        }
+      }
     },
     orderBy: {
       updatedAt: "desc"
@@ -152,10 +193,12 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
       return [
         {
           categoryScores: getCategoryScores(scoreCard),
-          kniffelCount: getKniffelCount(scoreCard),
+          kniffelCount: getKniffelCount(scoreCard, game.turns),
           playerId: player.userId,
           score: scoreCard.total ?? calculateTotalScore(scoreCard),
-          upperBonus: scoreCard.upperBonus ?? calculateUpperBonus(scoreCard)
+          struckCategoryCount: normalizeStruckCategories(scoreCard.struckCategories).length,
+          upperBonus: scoreCard.upperBonus ?? calculateUpperBonus(scoreCard),
+          upperScore: getUpperScore(scoreCard)
         }
       ];
     });

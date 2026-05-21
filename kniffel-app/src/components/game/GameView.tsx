@@ -41,29 +41,13 @@ export function GameView({
   simulateGameAction,
   startGameAction
 }: GameViewProps) {
-  function getNextPlayerId(nextFromState: GameState): string | null {
-    if (!nextFromState.currentPlayerId) {
-      return null;
-    }
-
-    const playerIdsInOrder = [...nextFromState.players]
-      .sort((a, b) => a.position - b.position)
-      .map((player) => player.id);
-    const currentIndex = playerIdsInOrder.indexOf(nextFromState.currentPlayerId);
-
-    if (currentIndex === -1 || playerIdsInOrder.length === 0) {
-      return nextFromState.currentPlayerId;
-    }
-
-    return playerIdsInOrder[(currentIndex + 1) % playerIdsInOrder.length];
-  }
-
   const [state, setState] = useState(initialState);
   const [pollError, setPollError] = useState<string | null>(null);
   const [turnModeOpen, setTurnModeOpen] = useState(() => initialState.status === "ACTIVE");
   const fetchingRef = useRef(false);
   const wasCurrentUserAbleToAct = useRef(canUserManageCurrentTurn(initialState, currentUserId));
   const currentUserPlayer = getPlayerByUserId(state, currentUserId);
+  const hasActiveTurn = Boolean(state.activeTurn);
 
   const refreshState = useCallback(async () => {
     const response = await fetch(`/api/games/${initialState.gameId}/state`, {
@@ -94,6 +78,7 @@ export function GameView({
 
   useEffect(() => {
     let active = true;
+    const pollingIntervalMs = hasActiveTurn ? 700 : 2500;
 
     async function fetchState() {
       if (fetchingRef.current) {
@@ -117,13 +102,13 @@ export function GameView({
       }
     }
 
-    const intervalId = window.setInterval(fetchState, 2500);
+    const intervalId = window.setInterval(fetchState, pollingIntervalMs);
 
     return () => {
       active = false;
       window.clearInterval(intervalId);
     };
-  }, [refreshState]);
+  }, [hasActiveTurn, refreshState]);
 
   return (
     <>
@@ -149,11 +134,6 @@ export function GameView({
           onBackToLobby={() => setTurnModeOpen(false)}
           onSaved={() => {
             const playerIdBeforeSave = state.currentPlayerId;
-
-            setState((previousState) => ({
-              ...previousState,
-              currentPlayerId: getNextPlayerId(previousState)
-            }));
 
             void (async () => {
               for (let attempt = 0; attempt < 6; attempt += 1) {
