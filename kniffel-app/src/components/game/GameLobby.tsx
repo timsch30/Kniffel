@@ -256,7 +256,7 @@ function LobbyPlayerReorderItem({
         <div className="min-w-0 grid gap-1">
           <p className="truncate text-[0.68rem] font-semibold text-emerald-50/55">
             Position {position}
-            {player.userId === null ? " / Gast" : own ? " / du" : ""}
+            {player.isBot ? " / Bot" : player.userId === null ? " / Gast" : own ? " / du" : ""}
           </p>
           {editableGuest ? (
             <input

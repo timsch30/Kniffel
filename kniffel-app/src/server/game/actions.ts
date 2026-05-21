@@ -11,6 +11,7 @@ import {
   determineNextPlayer,
   isCategoryFilled,
   isScoreCategory,
+  scoreCategories,
   updateScoreCard,
   updateStruckCategories
 } from "@/game/scorecard";
@@ -22,6 +23,7 @@ import { generateUniqueInviteCode } from "@/server/game/invite-code";
 
 const MAX_CREATE_GAME_ATTEMPTS = 5;
 const MAX_PLAYER_DISPLAY_NAME_LENGTH = 30;
+const MAX_BOT_COUNT = 5;
 
 function isDebugAdmin(user: { username: string }): boolean {
   return user.username.trim().toLowerCase() === "admin";
@@ -58,6 +60,41 @@ function createDefaultGuestName(players: Array<{ displayName: string; userId: st
   return `Spieler ${guestNumber}`;
 }
 
+
+function readBotCount(formData: FormData): number {
+  const rawValue = readString(formData, "botCount");
+
+  if (!rawValue) {
+    return 0;
+  }
+
+  const parsedValue = Number(rawValue);
+
+  if (!Number.isInteger(parsedValue) || parsedValue < 0 || parsedValue > MAX_BOT_COUNT) {
+    throw new Error(`Bot-Anzahl muss zwischen 0 und ${MAX_BOT_COUNT} liegen.`);
+  }
+
+  return parsedValue;
+}
+
+function createDefaultBotName(players: Array<{ displayName: string }>) {
+  const existingNames = new Set(players.map((player) => player.displayName.toLowerCase()));
+  let botNumber = 1;
+
+  while (existingNames.has(`bot ${botNumber}`)) {
+    botNumber += 1;
+  }
+
+  return `Bot ${botNumber}`;
+}
+
+function getBestCategoryForBot(scoreCard: Prisma.ScoreCardGetPayload<Record<string, never>>, diceValues: number[]) {
+  const availableCategories = scoreCategories.filter((category) => !isCategoryFilled(scoreCard, category));
+
+  return availableCategories
+    .map((category) => ({ category, points: calculateScoreForCategory(category, diceValues) }))
+    .sort((a, b) => b.points - a.points)[0];
+}
 function orderedFriendshipPair(firstUserId: string, secondUserId: string) {
   return firstUserId < secondUserId
     ? { friendId: secondUserId, userId: firstUserId }
@@ -112,6 +149,15 @@ async function addUserToGame(
 export async function createGameAction(formData: FormData): Promise<void> {
   const user = await requireCurrentUser();
   const name = readString(formData, "name");
+  let botCount = 0;
+
+  try {
+    botCount = readBotCount(formData);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Bot-Konfiguration ist ungueltig.";
+
+    redirectWithError("/games/new", message);
+  }
 
   if (name.length < 3) {
     redirectWithError("/games/new", "Rundenname muss mindestens 3 Zeichen lang sein.");
@@ -155,6 +201,32 @@ export async function createGameAction(formData: FormData): Promise<void> {
             playerId: gamePlayer.id
           }
         });
+
+        const lobbyPlayers = [{ displayName: user.username }];
+
+        for (let botIndex = 0; botIndex < botCount; botIndex += 1) {
+          const displayName = createDefaultBotName(lobbyPlayers);
+          lobbyPlayers.push({ displayName });
+
+          const botPlayer = await tx.gamePlayer.create({
+            data: {
+              displayName,
+              gameId: createdGame.id,
+              isBot: true,
+              position: botIndex + 2
+            },
+            select: {
+              id: true
+            }
+          });
+
+          await tx.scoreCard.create({
+            data: {
+              gameId: createdGame.id,
+              playerId: botPlayer.id
+            }
+          });
+        }
 
         return createdGame;
       });
@@ -1281,6 +1353,79 @@ export async function simulateGameAction(gameId: string): Promise<void> {
   redirect(errorPath);
 }
 
+
+async function playBotTurnsUntilHumanTurn(tx: Prisma.TransactionClient, gameId: string) {
+  while (true) {
+    const game = await tx.game.findUnique({
+      include: {
+        players: {
+          orderBy: {
+            position: "asc"
+          },
+          select: {
+            id: true,
+            isBot: true
+          }
+        },
+        scoreCards: true
+      },
+      where: {
+        id: gameId
+      }
+    });
+
+    if (!game || game.status !== "ACTIVE") {
+      return;
+    }
+
+    const currentPlayer = game.players.find((player) => player.id === game.currentPlayerId);
+
+    if (!currentPlayer?.isBot) {
+      return;
+    }
+
+    const scoreCard = game.scoreCards.find((card) => card.playerId === currentPlayer.id);
+
+    if (!scoreCard) {
+      return;
+    }
+
+    const diceValues = Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1);
+    const best = getBestCategoryForBot(scoreCard, diceValues);
+
+    if (!best) {
+      return;
+    }
+
+    const nextScoreCard = updateScoreCard(scoreCard, best.category, best.points);
+    const struckCategories = updateStruckCategories(scoreCard.struckCategories, best.category, best.points === 0);
+
+    await tx.scoreCard.update({
+      data: {
+        [best.category]: best.points,
+        struckCategories,
+        total: nextScoreCard.total,
+        upperBonus: nextScoreCard.upperBonus
+      } as Prisma.ScoreCardUpdateInput,
+      where: { id: scoreCard.id }
+    });
+
+    await tx.turn.create({ data: { diceValues, gameId: game.id, playerId: currentPlayer.id, status: "FINISHED" } });
+
+    const updatedCards = game.scoreCards.map((card) =>
+      card.id === scoreCard.id ? { ...card, [best.category]: best.points, struckCategories, total: nextScoreCard.total, upperBonus: nextScoreCard.upperBonus } : card
+    );
+
+    if (areAllScoreCardsComplete(updatedCards)) {
+      await tx.game.update({ data: { currentPlayerId: null, status: "FINISHED" }, where: { id: game.id } });
+      return;
+    }
+
+    const nextTurn = determineNextPlayer(game.players, currentPlayer.id);
+    await tx.game.update({ data: { currentPlayerId: nextTurn.nextPlayerId, roundNumber: nextTurn.completedRotation ? game.roundNumber + 1 : game.roundNumber }, where: { id: game.id } });
+  }
+}
+
 export async function enterScoreAction(gameId: string, formData: FormData): Promise<void> {
   const user = await requireCurrentUser();
   const errorPath = `/games/${gameId}`;
@@ -1428,6 +1573,8 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
           id: game.id
         }
       });
+
+      await playBotTurnsUntilHumanTurn(tx, game.id);
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Punkte konnten nicht gespeichert werden.";

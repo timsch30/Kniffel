@@ -1,0 +1,2 @@
+ALTER TABLE "GamePlayer"
+ADD COLUMN "isBot" BOOLEAN NOT NULL DEFAULT false;

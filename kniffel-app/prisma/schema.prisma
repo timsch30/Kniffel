@@ -79,6 +79,7 @@ model GamePlayer {
   id             String      @id @default(cuid())
   gameId         String
   userId         String?
+  isBot          Boolean     @default(false)
   displayName    String
   position       Int
   createdAt      DateTime    @default(now())

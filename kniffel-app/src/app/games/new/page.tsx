@@ -44,6 +44,15 @@ export default async function NewGamePage({ searchParams }: NewGamePageProps) {
             required
             type="text"
           />
+          <Input
+            defaultValue="0"
+            description="Optional: Fuegt direkt beim Erstellen Computergegner hinzu."
+            label="Bots"
+            max={5}
+            min={0}
+            name="botCount"
+            type="number"
+          />
           <SubmitButton pendingLabel="Runde wird erstellt...">Runde erstellen</SubmitButton>
         </form>
       </Card>
