@@ -32,6 +32,8 @@ type AnimatedEntry = {
   category: GameState["lastEntries"][number]["category"];
   id: string;
   playerId: string;
+  points: number;
+  playerName: string;
 };
 
 type OnlineTurnUpdatePayload = {
@@ -113,6 +115,7 @@ export function GameTurnScreen({
   const [showRollModePicker, setShowRollModePicker] = useState(false);
   const autoOpenedTurnKeyRef = useRef<string | null>(null);
   const [animatingEntry, setAnimatingEntry] = useState<AnimatedEntry | null>(null);
+  const [onlineEntryReveal, setOnlineEntryReveal] = useState<AnimatedEntry | null>(null);
   const [viewedPlayerId, setViewedPlayerId] = useState(
     () =>
       state.currentPlayerId ??
@@ -205,23 +208,36 @@ export function GameTurnScreen({
       window.clearTimeout(latestEntryTimeoutRef.current);
     }
 
-    setAnimatingEntry({
+    const entryForAnimation: AnimatedEntry = {
       category: latestEntry.category,
       id: latestEntry.id,
-      playerId: latestEntry.playerId
-    });
+      playerId: latestEntry.playerId,
+      playerName: latestEntry.displayName,
+      points: latestEntry.points
+    };
+
+    setAnimatingEntry(entryForAnimation);
     scrollToPlayer(latestEntry.playerId);
+
+    if (latestEntry.entryMode === "online") {
+      setOnlineEntryReveal(entryForAnimation);
+    } else {
+      setOnlineEntryReveal(null);
+    }
+
+    const revealDuration = latestEntry.entryMode === "online" ? (shouldReduceMotion ? 600 : 1850) : 0;
 
     latestEntryTimeoutRef.current = window.setTimeout(
       () => {
         setAnimatingEntry((current) => (current?.id === latestEntry.id ? null : current));
+        setOnlineEntryReveal((current) => (current?.id === latestEntry.id ? null : current));
         latestEntryTimeoutRef.current = null;
 
         if (state.currentPlayerId) {
           scrollToPlayer(state.currentPlayerId);
         }
       },
-      shouldReduceMotion ? 350 : 2200
+      revealDuration
     );
   }, [emblaApi, scrollToPlayer, shouldReduceMotion, state.currentPlayerId, state.latestEntry]);
 
@@ -349,7 +365,22 @@ export function GameTurnScreen({
           </div>
         </div>
 
+
+        {onlineEntryReveal ? (
+          <motion.div
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-lg border border-brass/35 bg-brass/12 px-3 py-2 text-sm text-amber-50 shadow-[0_8px_24px_rgba(0,0,0,0.18)]"
+            exit={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: -8 }}
+            key={onlineEntryReveal.id}
+            transition={{ duration: shouldReduceMotion ? 0.01 : 0.2 }}
+          >
+            <span className="font-semibold">{onlineEntryReveal.playerName}</span> hat <span className="font-semibold">{onlineEntryReveal.category}</span> mit <span className="font-semibold">{onlineEntryReveal.points} Punkten</span> eingetragen.
+          </motion.div>
+        ) : null}
+
         <div className="-mx-4 overflow-hidden px-4 pb-3 sm:mx-0 sm:px-0" ref={emblaRef}>
+
           <div className="flex touch-pan-y gap-4">
             {state.players.map((player) => {
               const scoreCard = getPlayerScoreCard(state, player.id);
