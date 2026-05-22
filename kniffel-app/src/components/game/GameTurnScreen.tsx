@@ -25,6 +25,7 @@ type GameTurnScreenProps = {
   enterScoreAction: (formData: FormData) => void | Promise<void>;
   onBackToLobby: () => void;
   onSaved: () => void;
+  suppressCurrentUserTurn?: boolean;
   state: GameState;
 };
 
@@ -106,6 +107,7 @@ export function GameTurnScreen({
   enterScoreAction,
   onBackToLobby,
   onSaved,
+  suppressCurrentUserTurn = false,
   state
 }: GameTurnScreenProps) {
   const [entryOpen, setEntryOpen] = useState(false);
@@ -140,7 +142,7 @@ export function GameTurnScreen({
   const viewedPlayerScoreCard = viewedPlayer ? getPlayerScoreCard(state, viewedPlayer.id) : null;
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
   const activeScoreCard = currentPlayer ? getPlayerScoreCard(state, currentPlayer.id) : null;
-  const canManageTurn = canUserManageCurrentTurn(state, currentUserId);
+  const canManageTurn = !suppressCurrentUserTurn && canUserManageCurrentTurn(state, currentUserId);
   const filledCount = getFilledCategoryCount(activeScoreCard);
   const viewedTotal = viewedPlayerScoreCard?.total ?? 0;
   const lastEntryByPlayerId = new Map(state.lastEntries.map((entry) => [entry.playerId, entry]));
@@ -270,6 +272,13 @@ export function GameTurnScreen({
 
     scrollToPlayer(state.currentPlayerId);
   }, [emblaApi, playerIdsKey, scrollToPlayer, state.currentPlayerId]);
+
+  useEffect(() => {
+    if (suppressCurrentUserTurn) {
+      setEntryOpen(false);
+      setShowRollModePicker(false);
+    }
+  }, [suppressCurrentUserTurn]);
 
   useEffect(() => {
     if (canManageTurn && !rollMode) {
