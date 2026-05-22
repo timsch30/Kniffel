@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 
 import { motion } from "framer-motion";
 import {
-  BarChart3,
   Flame,
   Gauge,
   Medal,
@@ -20,7 +19,6 @@ import { HeadToHeadCard } from "@/components/social/HeadToHeadCard";
 import { Leaderboard } from "@/components/social/Leaderboard";
 import { MetricTile } from "@/components/social/MetricTile";
 import { PlayerProfileCard } from "@/components/social/PlayerProfileCard";
-import { RecentGames } from "@/components/social/RecentGames";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -31,10 +29,9 @@ import {
   calculateHeadToHeadStats,
   calculateLeaderboard,
   calculatePlayerStats,
-  calculateRivalStats,
-  getRecentGames
+  calculateRivalStats
 } from "@/social/stats";
-import type { Friend, Game, Player, PlayerId } from "@/social/types";
+import type { Friend, Player, PlayerId } from "@/social/types";
 
 type SocialDashboardProps = {
   acceptFriendRequestAction: (requestId: string) => void | Promise<void>;
@@ -47,9 +44,7 @@ type SocialDashboardProps = {
   userName: string;
 };
 
-type TabId = "overview" | "friends" | "ranking" | "profile";
-
-const games: Game[] = [];
+type TabId = "friends" | "ranking" | "profile";
 
 const currentPlayer: Player = {
   color: "bg-ink text-white dark:bg-white dark:text-zinc-950",
@@ -58,26 +53,24 @@ const currentPlayer: Player = {
   name: "Du"
 };
 
-const tabs: { icon: typeof BarChart3; id: TabId; label: string }[] = [
-  { icon: BarChart3, id: "overview", label: "Uebersicht" },
+const tabs: { icon: typeof UsersRound; id: TabId; label: string }[] = [
   { icon: UsersRound, id: "friends", label: "Freunde" },
   { icon: Trophy, id: "ranking", label: "Ranking" },
   { icon: UserRound, id: "profile", label: "Profil" }
 ];
 
-const fallbackFriend: Friend = {
+  const fallbackFriend: Friend = {
   color: "bg-slate-600 text-white",
   favoriteCategory: "Offen",
+  inGame: false,
   id: "fallback",
   initials: "--",
+  isOnline: false,
   lastActiveAt: new Date(0).toISOString(),
+  lastSeenAt: null,
   name: "Offen",
   relationshipStatus: "accepted"
 };
-
-function getFriendStats(friend: Friend) {
-  return calculatePlayerStats(games, friend.id);
-}
 
 export function SocialDashboard({
   acceptFriendRequestAction,
@@ -89,7 +82,7 @@ export function SocialDashboard({
   userId,
   userName
 }: SocialDashboardProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<TabId>("friends");
   const [selectedFriendId, setSelectedFriendId] = useState<PlayerId>(
     socialState.friends[0]?.id ?? ""
   );
@@ -103,40 +96,40 @@ export function SocialDashboard({
     [userId, userName]
   );
   const friends = socialState.friends;
+  const games = socialState.games;
   const players = useMemo<Player[]>(() => [user, ...friends], [friends, user]);
   const selectedFriend =
     friends.find((friend) => friend.id === selectedFriendId) ??
     friends[0] ??
     fallbackFriend;
-  const userStats = useMemo(() => calculatePlayerStats(games, user.id), [user.id]);
+  const userStats = useMemo(() => calculatePlayerStats(games, user.id), [games, user.id]);
   const selectedFriendStats = useMemo(
     () => calculatePlayerStats(games, selectedFriend.id),
-    [selectedFriend.id]
+    [games, selectedFriend.id]
   );
   const headToHead = useMemo(
     () => calculateHeadToHeadStats(games, user, selectedFriend),
-    [selectedFriend, user]
+    [games, selectedFriend, user]
   );
-  const leaderboard = useMemo(() => calculateLeaderboard(players, games), [players]);
+  const leaderboard = useMemo(() => calculateLeaderboard(players, games), [games, players]);
   const achievements = useMemo(() => calculateAchievements(userStats), [userStats]);
-  const recentGames = useMemo(() => getRecentGames(games, 5), []);
-  const rivals = useMemo(() => calculateRivalStats(games, user, friends), [friends, user]);
+  const rivals = useMemo(() => calculateRivalStats(games, user, friends), [friends, games, user]);
 
   return (
-    <div className="grid gap-5">
+    <div className="grid min-w-0 gap-5 overflow-x-hidden text-white">
       {error ? <Alert variant="danger">{error}</Alert> : null}
 
       <section className="grid gap-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="grid gap-2">
-            <Badge className="w-fit" variant="accent">
+            <Badge className="w-fit border-brass/40 bg-brass/20 text-amber-50" variant="accent">
               Social Stats
             </Badge>
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl dark:text-zinc-50">
+              <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                 Freunde, Rivalen, Fortschritt.
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-zinc-400">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50/75">
                 Freunde verwalten und echte Runden im Blick behalten.
               </p>
             </div>
@@ -150,7 +143,7 @@ export function SocialDashboard({
 
         <nav
           aria-label="Social Navigation"
-          className="grid grid-cols-4 rounded-lg border border-slate-200/80 bg-white/75 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.04]"
+          className="grid grid-cols-3 rounded-lg border border-white/10 bg-white/[0.08] p-1 shadow-sm backdrop-blur-xl"
         >
           {tabs.map(({ icon: Icon, id, label }) => {
             const active = activeTab === id;
@@ -161,8 +154,8 @@ export function SocialDashboard({
                 className={cn(
                   "relative isolate flex min-h-11 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors sm:text-sm",
                   active
-                    ? "text-ink dark:text-zinc-950"
-                    : "text-slate-500 hover:text-ink dark:text-zinc-400 dark:hover:text-zinc-100"
+                    ? "!text-ink"
+                    : "text-emerald-50/65 hover:text-white"
                 )}
                 key={id}
                 onClick={() => setActiveTab(id)}
@@ -170,7 +163,7 @@ export function SocialDashboard({
               >
                 {active ? (
                   <motion.span
-                    className="absolute inset-0 -z-10 rounded-md bg-white shadow-sm dark:bg-zinc-100"
+                    className="absolute inset-0 -z-10 rounded-md bg-brass shadow-sm"
                     layoutId="social-tab"
                     transition={{ duration: 0.18, ease: "easeOut" }}
                   />
@@ -182,34 +175,6 @@ export function SocialDashboard({
           })}
         </nav>
       </section>
-
-      {activeTab === "overview" ? (
-        <motion.section
-          animate={{ opacity: 1, y: 0 }}
-          className="grid gap-4 lg:grid-cols-[1fr_0.9fr]"
-          initial={{ opacity: 0, y: 8 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="grid gap-4">
-            <PlayerProfileCard player={user} stats={userStats} />
-            <HeadToHeadCard friend={selectedFriend} stats={headToHead} user={user} />
-          </div>
-          <div className="grid gap-4">
-              <FriendList
-              acceptFriendRequestAction={acceptFriendRequestAction}
-              declineFriendRequestAction={declineFriendRequestAction}
-              friends={friends}
-              incomingRequests={socialState.incomingRequests}
-              onSelect={setSelectedFriendId}
-              outgoingRequests={socialState.outgoingRequests}
-              removeFriendAction={removeFriendAction}
-              selectedFriendId={selectedFriend?.id ?? ""}
-              sendFriendRequestAction={sendFriendRequestAction}
-            />
-            <RecentGames games={recentGames} players={players} />
-          </div>
-        </motion.section>
-      ) : null}
 
       {activeTab === "friends" ? (
         <motion.section
@@ -244,11 +209,11 @@ export function SocialDashboard({
           transition={{ duration: 0.2 }}
         >
           <Leaderboard entries={leaderboard} />
-          <Card className="p-4">
-            <h2 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+          <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+            <h2 className="text-lg font-semibold tracking-tight text-white">
               Rivalen Radar
             </h2>
-            <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">
+            <p className="mt-1 text-sm text-emerald-50/70">
               Nur die wichtigsten Social-Stats.
             </p>
             <div className="mt-4 grid gap-3">
@@ -263,17 +228,17 @@ export function SocialDashboard({
       {activeTab === "profile" ? (
         <motion.section
           animate={{ opacity: 1, y: 0 }}
-          className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]"
+          className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]"
           initial={{ opacity: 0, y: 8 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             <PlayerProfileCard player={user} stats={userStats} />
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+            <Card className="min-w-0 !border-white/10 !bg-white/[0.09] p-3 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:p-4">
+              <h2 className="text-lg font-semibold tracking-tight text-white">
                 Kniffel Stats
               </h2>
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 sm:gap-3">
                 <MetricTile label="Kniffel gesamt" value={userStats.totalKniffel} />
                 <MetricTile label="Kniffel pro Spiel" value={userStats.kniffelPerGame} />
                 <MetricTile label="Haeufigste Kategorie" value={userStats.favoriteCategory} />
@@ -281,46 +246,7 @@ export function SocialDashboard({
               </div>
             </Card>
           </div>
-          <div className="grid gap-4">
-            <Card className="p-4">
-              <h2 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
-                Freundesvergleich
-              </h2>
-              <div className="mt-4 grid gap-2">
-                {friends.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
-                    Noch keine Freunde.
-                  </div>
-                ) : null}
-                {friends.map((friend) => {
-                  const stats = getFriendStats(friend);
-
-                  return (
-                    <button
-                      className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 text-left transition-all hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]"
-                      key={friend.id}
-                      onClick={() => {
-                        setSelectedFriendId(friend.id);
-                        setActiveTab("friends");
-                      }}
-                      type="button"
-                    >
-                      <span>
-                        <span className="block text-sm font-semibold text-ink dark:text-zinc-50">
-                          {friend.name}
-                        </span>
-                        <span className="text-xs text-slate-500 dark:text-zinc-400">
-                          {stats.gamesWon} Siege / {stats.averagePoints} Schnitt
-                        </span>
-                      </span>
-                      <span className="text-xs font-semibold text-felt dark:text-emerald-300">
-                        Oeffnen
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </Card>
+          <div className="grid min-w-0 gap-4">
             <AchievementsPanel achievements={achievements} />
           </div>
         </motion.section>

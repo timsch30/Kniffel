@@ -7,30 +7,38 @@ import { WifiOff } from "lucide-react";
 import { GameLobby } from "@/components/game/GameLobby";
 import { GameTurnScreen } from "@/components/game/GameTurnScreen";
 import { Alert } from "@/components/ui/Alert";
-import { getPlayerByUserId, isUserTurn } from "@/game/game-state";
+import { canUserManageCurrentTurn, getPlayerByUserId } from "@/game/game-state";
 import type { GameState } from "@/game/state";
 
 type GameViewProps = {
+  addGuestPlayerAction: () => void | Promise<void>;
   currentUserId: string;
   enterScoreAction: (formData: FormData) => void | Promise<void>;
   error?: string;
   initialState: GameState;
   inviteFriendToGameAction: (formData: FormData) => void | Promise<void>;
   inviteLink: string;
-  movePlayerAction: (playerId: string, direction: "up" | "down") => void | Promise<void>;
+  isDebugAdmin?: boolean;
+  reorderPlayersAction: (formData: FormData) => void | Promise<void>;
+  removeGuestPlayerAction: (playerId: string) => void | Promise<void>;
   restartGameAction: () => void | Promise<void>;
-  startGameAction: () => void | Promise<void>;
+  simulateGameAction?: () => void | Promise<void>;
+  startGameAction: (formData: FormData) => void | Promise<void>;
 };
 
 export function GameView({
+  addGuestPlayerAction,
   currentUserId,
   enterScoreAction,
   error,
   initialState,
   inviteFriendToGameAction,
   inviteLink,
-  movePlayerAction,
+  isDebugAdmin = false,
+  reorderPlayersAction,
+  removeGuestPlayerAction,
   restartGameAction,
+  simulateGameAction,
   startGameAction
 }: GameViewProps) {
   function getNextPlayerId(nextFromState: GameState): string | null {
@@ -54,7 +62,7 @@ export function GameView({
   const [pollError, setPollError] = useState<string | null>(null);
   const [turnModeOpen, setTurnModeOpen] = useState(() => initialState.status === "ACTIVE");
   const fetchingRef = useRef(false);
-  const wasCurrentUserTurn = useRef(isUserTurn(initialState, currentUserId));
+  const wasCurrentUserAbleToAct = useRef(canUserManageCurrentTurn(initialState, currentUserId));
   const currentUserPlayer = getPlayerByUserId(state, currentUserId);
 
   const refreshState = useCallback(async () => {
@@ -67,7 +75,7 @@ export function GameView({
     }
 
     const nextState = (await response.json()) as GameState;
-    const nextIsCurrentUserTurn = isUserTurn(nextState, currentUserId);
+    const nextCanCurrentUserAct = canUserManageCurrentTurn(nextState, currentUserId);
 
     setState(nextState);
     setPollError(null);
@@ -76,11 +84,11 @@ export function GameView({
       setTurnModeOpen(true);
     }
 
-    if (!wasCurrentUserTurn.current && nextIsCurrentUserTurn) {
+    if (!wasCurrentUserAbleToAct.current && nextCanCurrentUserAct) {
       setTurnModeOpen(true);
     }
 
-    wasCurrentUserTurn.current = nextIsCurrentUserTurn;
+    wasCurrentUserAbleToAct.current = nextCanCurrentUserAct;
     return nextState;
   }, [currentUserId, initialState.gameId, state.status]);
 
@@ -161,7 +169,7 @@ export function GameView({
                   const nextState = (await response.json()) as GameState;
 
                   if (nextState.currentPlayerId !== playerIdBeforeSave) {
-                    const nextIsCurrentUserTurn = isUserTurn(nextState, currentUserId);
+                    const nextCanCurrentUserAct = canUserManageCurrentTurn(nextState, currentUserId);
                     setState(nextState);
                     setPollError(null);
 
@@ -169,11 +177,11 @@ export function GameView({
                       setTurnModeOpen(true);
                     }
 
-                    if (!wasCurrentUserTurn.current && nextIsCurrentUserTurn) {
+                    if (!wasCurrentUserAbleToAct.current && nextCanCurrentUserAct) {
                       setTurnModeOpen(true);
                     }
 
-                    wasCurrentUserTurn.current = nextIsCurrentUserTurn;
+                    wasCurrentUserAbleToAct.current = nextCanCurrentUserAct;
                     return;
                   }
                 } catch {
@@ -190,12 +198,16 @@ export function GameView({
         />
       ) : (
         <GameLobby
+          addGuestPlayerAction={addGuestPlayerAction}
           currentUserId={currentUserId}
           inviteLink={inviteLink}
           inviteFriendToGameAction={inviteFriendToGameAction}
-          movePlayerAction={movePlayerAction}
           onOpenTurn={() => setTurnModeOpen(true)}
+          reorderPlayersAction={reorderPlayersAction}
+          removeGuestPlayerAction={removeGuestPlayerAction}
           restartGameAction={restartGameAction}
+          showDebugSimulation={isDebugAdmin && Boolean(simulateGameAction)}
+          simulateGameAction={simulateGameAction}
           startGameAction={startGameAction}
           state={state}
         />

@@ -14,27 +14,30 @@ type PlayerProfileCardProps = {
 
 export function PlayerProfileCard({ label = "Spielerprofil", player, stats }: PlayerProfileCardProps) {
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="bg-gradient-to-br from-white to-slate-50 px-5 py-5 dark:from-zinc-900 dark:to-zinc-950">
-        <div className="flex items-start justify-between gap-4">
+    <Card className="min-w-0 overflow-hidden !border-white/10 !bg-white/[0.09] p-0 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+      <div className="border-b border-white/10 bg-black/15 px-3 py-4 sm:px-5 sm:py-5">
+        <div className="flex min-w-0 items-start justify-between gap-3 sm:gap-4">
           <div className="flex min-w-0 items-center gap-3">
-            <PlayerAvatar className="h-14 w-14 rounded-3xl text-base" player={player} />
+            <PlayerAvatar className="h-12 w-12 rounded-2xl text-sm sm:h-14 sm:w-14 sm:rounded-3xl sm:text-base" player={player} />
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wide text-felt dark:text-emerald-300">
+              <p className="text-xs font-bold uppercase tracking-wide text-amber-100">
                 {label}
               </p>
-              <h2 className="truncate text-2xl font-semibold tracking-tight text-ink dark:text-zinc-50">
+              <h2 className="truncate text-xl font-semibold tracking-tight text-white sm:text-2xl">
                 {player.name}
               </h2>
             </div>
           </div>
-          <Badge variant={stats.currentWinStreak > 0 ? "success" : "neutral"}>
+          <Badge
+            className="shrink-0 px-2"
+            variant={stats.currentWinStreak > 0 ? "success" : "neutral"}
+          >
             Serie {stats.currentWinStreak}
           </Badge>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 p-3 sm:grid-cols-4 sm:gap-3 sm:p-4">
         <MetricTile icon={Trophy} label="Siege" value={stats.gamesWon} />
         <MetricTile icon={Percent} label="Winrate" value={`${stats.winRate}%`} />
         <MetricTile icon={Sigma} label="Schnitt" value={stats.averagePoints} />

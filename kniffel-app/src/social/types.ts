@@ -12,7 +12,10 @@ export type FriendStatus = "accepted" | "incoming" | "outgoing";
 
 export type Friend = Player & {
   favoriteCategory: string;
+  inGame: boolean;
+  isOnline: boolean;
   lastActiveAt: string;
+  lastSeenAt: string | null;
   relationshipStatus: FriendStatus;
 };
 
@@ -27,6 +30,7 @@ export type PlayerGameResult = {
   kniffelCount: number;
   playerId: PlayerId;
   score: number;
+  upperBonus?: number;
 };
 
 export type Game = {
@@ -50,13 +54,20 @@ export type RivalStats = {
 export type PlayerStats = {
   averagePoints: number;
   bestCategory: string;
+  bestGameKniffel: number;
   currentWinStreak: number;
+  doubleKniffelGames: number;
+  exactScore375Games: number;
   favoriteCategory: string;
+  fullHouseCount: number;
   gamesPlayed: number;
   gamesWon: number;
   highestScore: number;
   kniffelPerGame: number;
   longestWinStreak: number;
+  perfectUpperBonusGames: number;
+  straightBuilderGames: number;
+  tripleKniffelGames: number;
   totalKniffel: number;
   totalPoints: number;
   winRate: number;
@@ -91,9 +102,20 @@ export type HeadToHeadStats = {
 
 export type AchievementRarity = "common" | "rare" | "epic";
 
+export type AchievementCategory =
+  | "entry"
+  | "progress"
+  | "points"
+  | "streaks"
+  | "luck"
+  | "categories"
+  | "secret";
+
 export type Achievement = {
+  category: AchievementCategory;
   description: string;
   earned: boolean;
+  hidden?: boolean;
   id: string;
   label: string;
   progress: number;

@@ -1,3 +1,4 @@
+import { DashboardBackdrop } from "@/components/dashboard/DashboardBackdrop";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { SocialDashboard } from "@/components/social/SocialDashboard";
 import { requireCurrentUser } from "@/server/auth/session";
@@ -23,7 +24,9 @@ export default async function SocialPage({ searchParams }: SocialPageProps) {
   const { error } = await searchParams;
 
   return (
-    <PageContainer className="grid gap-6" size="xl">
+    <>
+      <DashboardBackdrop />
+      <PageContainer className="grid gap-6 pb-16 pt-7 sm:pt-10" size="xl">
       <SocialDashboard
         acceptFriendRequestAction={acceptFriendRequestAction}
         declineFriendRequestAction={declineFriendRequestAction}
@@ -34,6 +37,7 @@ export default async function SocialPage({ searchParams }: SocialPageProps) {
         userId={user.id}
         userName={user.username}
       />
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 }

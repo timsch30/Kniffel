@@ -1,14 +1,18 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 
+import { DashboardBackdrop } from "@/components/dashboard/DashboardBackdrop";
 import { GameView } from "@/components/game/GameView";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { requireCurrentUser } from "@/server/auth/session";
 import {
+  addGuestPlayerAction,
   enterScoreAction,
   inviteFriendToGameAction,
-  movePlayerAction,
+  reorderPlayersAction,
+  removeGuestPlayerAction,
   restartGameAction,
+  simulateGameAction,
   startGameAction
 } from "@/server/game/actions";
 import { getGameState } from "@/server/game/state";
@@ -41,22 +45,32 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
   const inviteLink = host ? `${protocol}://${host}${joinPath}` : joinPath;
   const boundStartGameAction = startGameAction.bind(null, initialState.gameId);
   const boundEnterScoreAction = enterScoreAction.bind(null, initialState.gameId);
-  const boundMovePlayerAction = movePlayerAction.bind(null, initialState.gameId);
+  const boundReorderPlayersAction = reorderPlayersAction.bind(null, initialState.gameId);
   const boundRestartGameAction = restartGameAction.bind(null, initialState.gameId);
+  const boundSimulateGameAction = simulateGameAction.bind(null, initialState.gameId);
+  const boundAddGuestPlayerAction = addGuestPlayerAction.bind(null, initialState.gameId);
+  const boundRemoveGuestPlayerAction = removeGuestPlayerAction.bind(null, initialState.gameId);
 
   return (
-    <PageContainer className="grid gap-4 sm:gap-5" size="xl">
-      <GameView
-        currentUserId={user.id}
-        enterScoreAction={boundEnterScoreAction}
-        error={error}
-        initialState={initialState}
-        inviteFriendToGameAction={inviteFriendToGameAction}
-        inviteLink={inviteLink}
-        movePlayerAction={boundMovePlayerAction}
-        restartGameAction={boundRestartGameAction}
-        startGameAction={boundStartGameAction}
-      />
-    </PageContainer>
+    <>
+      <DashboardBackdrop />
+      <PageContainer className="grid gap-4 pb-20 pt-0 sm:gap-5 sm:pt-0" size="xl">
+        <GameView
+          addGuestPlayerAction={boundAddGuestPlayerAction}
+          currentUserId={user.id}
+          enterScoreAction={boundEnterScoreAction}
+          error={error}
+          initialState={initialState}
+          inviteFriendToGameAction={inviteFriendToGameAction}
+          inviteLink={inviteLink}
+          isDebugAdmin={user.username.trim().toLowerCase() === "admin"}
+          reorderPlayersAction={boundReorderPlayersAction}
+          removeGuestPlayerAction={boundRemoveGuestPlayerAction}
+          restartGameAction={boundRestartGameAction}
+          simulateGameAction={boundSimulateGameAction}
+          startGameAction={boundStartGameAction}
+        />
+      </PageContainer>
+    </>
   );
 }

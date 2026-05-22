@@ -1,17 +1,43 @@
 import Link from "next/link";
 
-import { Check, DoorOpen, Plus, Search, Trophy, UserRoundPlus, UsersRound, X } from "lucide-react";
+import {
+  DoorOpen,
+  Plus,
+  Trash2,
+  Trophy,
+  UserMinus,
+  UserRoundPlus
+} from "lucide-react";
 
+import {
+  DashboardBackdrop
+} from "@/components/dashboard/DashboardBackdrop";
+import {
+  DashboardRequests,
+  type DashboardRequestsState
+} from "@/components/dashboard/DashboardRequests";
+import { DashboardStats } from "@/components/dashboard/DashboardStats";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
-import { Button, buttonVariants } from "@/components/ui/Button";
+import { buttonVariants } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { SubmitButton } from "@/components/ui/SubmitButton";
+import { scoreCategories } from "@/game/scorecard";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/server/auth/session";
-import { acceptGameInvitationAction, declineGameInvitationAction } from "@/server/game/actions";
+import {
+  acceptGameInvitationAction,
+  declineGameInvitationAction,
+  deleteGameAction,
+  leaveGameAction
+} from "@/server/game/actions";
+import { expireInactiveActiveGames } from "@/server/game/expiration";
+import {
+  acceptFriendRequestAction,
+  declineFriendRequestAction
+} from "@/server/social/actions";
+import { getSocialState } from "@/server/social/state";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +49,28 @@ function formatStatus(status: string): string {
   };
 
   return labels[status] ?? status;
+}
+
+function isCompleteScoreCard(
+  scoreCard: Partial<Record<(typeof scoreCategories)[number], number | null>>
+): boolean {
+  return scoreCategories.every(
+    (category) => scoreCard[category] !== null && scoreCard[category] !== undefined
+  );
+}
+
+function isExpiredGame(game: {
+  scoreCards: Array<Partial<Record<(typeof scoreCategories)[number], number | null>>>;
+  status: string;
+}): boolean {
+  return game.status === "FINISHED" && !game.scoreCards.every(isCompleteScoreCard);
+}
+
+function formatGameStatus(game: {
+  scoreCards: Array<Partial<Record<(typeof scoreCategories)[number], number | null>>>;
+  status: string;
+}): string {
+  return isExpiredGame(game) ? "Ausgelaufen" : formatStatus(game.status);
 }
 
 function statusVariant(status: string): "accent" | "neutral" | "success" | "warning" {
@@ -45,6 +93,31 @@ function formatDate(date: Date): string {
   }).format(date);
 }
 
+function GameExitButton({
+  gameId,
+  isOwner
+}: {
+  gameId: string;
+  isOwner: boolean;
+}) {
+  const action = isOwner ? deleteGameAction : leaveGameAction;
+  const Icon = isOwner ? Trash2 : UserMinus;
+  const label = isOwner ? "Loeschen" : "Verlassen";
+
+  return (
+    <form action={action.bind(null, gameId)}>
+      <button
+        aria-label={label}
+        className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-xs font-semibold text-emerald-50/60 transition-colors hover:border-red-300/20 hover:bg-red-400/10 hover:text-red-100"
+        type="submit"
+      >
+        <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+        {label}
+      </button>
+    </form>
+  );
+}
+
 type DashboardPageProps = {
   searchParams: Promise<{
     error?: string;
@@ -54,7 +127,10 @@ type DashboardPageProps = {
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const user = await requireCurrentUser();
   const { error } = await searchParams;
-  const [gamePlayers, gameInvitations] = await Promise.all([
+
+  await expireInactiveActiveGames();
+
+  const [gamePlayers, gameInvitations, socialState] = await Promise.all([
     prisma.gamePlayer.findMany({
     include: {
       game: {
@@ -62,6 +138,23 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           _count: {
             select: {
               players: true
+            }
+          },
+          scoreCards: {
+            select: {
+              chance: true,
+              fives: true,
+              fourOfAKind: true,
+              fours: true,
+              fullHouse: true,
+              kniffel: true,
+              largeStraight: true,
+              ones: true,
+              sixes: true,
+              smallStraight: true,
+              threeOfAKind: true,
+              threes: true,
+              twos: true
             }
           }
         }
@@ -98,117 +191,87 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         receiverId: user.id,
         status: "PENDING"
       }
-    })
+    }),
+    getSocialState()
   ]);
   const activeGames = gamePlayers.filter(({ game }) => game.status === "ACTIVE").length;
   const lobbyGames = gamePlayers.filter(({ game }) => game.status === "LOBBY").length;
-  const playerCount = gamePlayers.reduce((sum, { game }) => sum + game._count.players, 0);
-  const stats = [
-    { icon: Trophy, label: "Aktive Runden", value: activeGames },
-    { icon: UsersRound, label: "In Lobby", value: lobbyGames },
-    { icon: Search, label: "Spieler gesamt", value: playerCount }
-  ];
-
+  const friendsOnline = socialState.friends.filter((friend) => friend.isOnline).length;
+  const primaryGamePlayers = gamePlayers.filter(({ game }) => game.status !== "FINISHED");
+  const archivedGamePlayers = gamePlayers.filter(({ game }) => game.status === "FINISHED");
+  const initialRequests: DashboardRequestsState = {
+    friendRequests: socialState.incomingRequests.map((request) => ({
+      id: request.id,
+      username: request.username
+    })),
+    gameInvitations: gameInvitations.map((invitation) => ({
+      gameName: invitation.game.name,
+      id: invitation.id,
+      playerCount: invitation.game._count.players,
+      senderUsername: invitation.sender.username
+    }))
+  };
   return (
-    <PageContainer className="grid gap-8" size="xl">
+    <>
+    <DashboardBackdrop />
+    <PageContainer className="grid gap-8 pb-16 pt-7 sm:pt-10" size="xl">
       {error ? <Alert variant="danger">{error}</Alert> : null}
 
-      <section className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+      <section className="relative overflow-hidden rounded-lg border border-white/10 bg-white/[0.08] p-5 text-white shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-6">
+        <div className="absolute inset-x-0 top-0 h-px bg-white/25" />
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="grid gap-2">
-          <Badge className="w-fit" variant="accent">
+          <Badge className="w-fit border-brass/40 bg-brass/20 text-amber-50" variant="accent">
             Dashboard
           </Badge>
           <div className="grid gap-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl dark:text-zinc-50">
+            <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               Willkommen zurueck, {user.username}
             </h1>
-            <p className="max-w-2xl text-sm leading-6 text-slate-600 dark:text-zinc-400">
+            <p className="max-w-2xl text-sm leading-6 text-emerald-50/75">
               Starte eine neue Runde oder springe direkt in ein laufendes Spiel.
             </p>
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Link className={buttonVariants("secondary")} href="/join">
+          <Link className={`${buttonVariants("secondary")} border-white/15 bg-white/10 text-white hover:bg-white/15`} href="/join">
             <DoorOpen aria-hidden="true" className="h-4 w-4" />
             Beitreten
           </Link>
-          <Link className={buttonVariants("secondary")} href="/social">
+          <Link className={`${buttonVariants("secondary")} border-white/15 bg-white/10 text-white hover:bg-white/15`} href="/social">
             <UserRoundPlus aria-hidden="true" className="h-4 w-4" />
             Social Hub
           </Link>
-          <Link className={buttonVariants("primary")} href="/games/new">
+          <Link className={`${buttonVariants("primary")} bg-brass !text-ink hover:bg-amber-300`} href="/games/new">
             <Plus aria-hidden="true" className="h-4 w-4" />
             Neue Runde
           </Link>
         </div>
+        </div>
       </section>
 
-      {gameInvitations.length > 0 ? (
-        <section className="grid gap-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-semibold tracking-tight text-ink dark:text-zinc-50">
-              Rundeneinladungen
-            </h2>
-            <p className="text-sm text-slate-500 dark:text-zinc-400">
-              {gameInvitations.length} offen
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {gameInvitations.map((invitation) => (
-              <Card className="p-5" key={invitation.id}>
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Badge className="w-fit" variant="warning">
-                      Offen
-                    </Badge>
-                    <h3 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
-                      {invitation.game.name}
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-zinc-400">
-                      Von {invitation.sender.username} / {invitation.game._count.players} Spieler
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <form action={acceptGameInvitationAction.bind(null, invitation.id)}>
-                      <SubmitButton pendingLabel="Tritt bei...">
-                        <Check aria-hidden="true" className="h-4 w-4" />
-                        Annehmen
-                      </SubmitButton>
-                    </form>
-                    <form action={declineGameInvitationAction.bind(null, invitation.id)}>
-                      <Button type="submit" variant="ghost">
-                        <X aria-hidden="true" className="h-4 w-4" />
-                        Ablehnen
-                      </Button>
-                    </form>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <DashboardRequests
+        acceptFriendRequestAction={acceptFriendRequestAction}
+        acceptGameInvitationAction={acceptGameInvitationAction}
+        declineFriendRequestAction={declineFriendRequestAction}
+        declineGameInvitationAction={declineGameInvitationAction}
+        initialRequests={initialRequests}
+      />
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        {stats.map(({ icon: Icon, label, value }) => (
-          <Card className="p-4" key={label}>
-            <div className="mb-4 flex items-center justify-between text-slate-500 dark:text-zinc-400">
-              <p className="text-sm font-medium">{label}</p>
-              <Icon aria-hidden="true" className="h-4 w-4" />
-            </div>
-            <p className="text-3xl font-semibold tracking-tight text-ink dark:text-zinc-50">
-              {value}
-            </p>
-          </Card>
-        ))}
-      </section>
+      <DashboardStats
+        activeGames={activeGames}
+        friendsOnline={friendsOnline}
+        lobbyGames={lobbyGames}
+      />
 
       <section className="grid gap-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold tracking-tight text-ink dark:text-zinc-50">
+          <h2 className="text-xl font-semibold tracking-tight text-white">
             Meine Runden
           </h2>
-          <p className="text-sm text-slate-500 dark:text-zinc-400">{gamePlayers.length} gesamt</p>
+          <p className="text-sm text-emerald-50/70">
+            {primaryGamePlayers.length} aktiv
+          </p>
         </div>
         {gamePlayers.length === 0 ? (
           <EmptyState
@@ -222,50 +285,124 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             icon={<Trophy aria-hidden="true" className="h-5 w-5" />}
             title="Noch keine Runden"
           />
+        ) : primaryGamePlayers.length === 0 ? (
+          <EmptyState
+            action={
+              <Link className={buttonVariants("primary")} href="/games/new">
+                <Plus aria-hidden="true" className="h-4 w-4" />
+                Neue Runde erstellen
+              </Link>
+            }
+            description="Aktuell gibt es keine aktive Runde und keine Lobby. Alte Runden liegen im Archiv."
+            icon={<Trophy aria-hidden="true" className="h-5 w-5" />}
+            title="Keine aktiven Runden"
+          />
         ) : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {gamePlayers.map(({ game }) => (
-              <Card className="group h-full p-5" key={game.id}>
+            {primaryGamePlayers.map(({ game }) => {
+              const isOwner = game.ownerId === user.id;
+
+              return (
+              <Card
+                className="group h-full !border-white/10 !bg-white/[0.09] p-5 text-white shadow-[0_18px_58px_rgba(0,0,0,0.22)] backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:!border-brass/35 hover:!bg-white/[0.12]"
+                key={game.id}
+              >
                 <div className="grid h-full gap-5">
                   <div className="grid gap-3">
                     <div className="flex items-start justify-between gap-3">
-                      <h3 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
+                      <h3 className="text-lg font-semibold tracking-tight text-white">
                         {game.name}
                       </h3>
                       <Badge variant={statusVariant(game.status)}>{formatStatus(game.status)}</Badge>
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-zinc-400">
+                    <p className="text-sm text-emerald-50/60">
                       Aktualisiert am {formatDate(game.updatedAt)}
                     </p>
                   </div>
 
                   <dl className="grid gap-2 text-sm">
-                    <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                      <dt className="text-slate-500 dark:text-zinc-400">Invite-Code</dt>
-                      <dd className="font-mono font-semibold text-ink dark:text-zinc-100">
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2">
+                      <dt className="text-emerald-50/60">Invite-Code</dt>
+                      <dd className="font-mono font-semibold text-white">
                         {game.inviteCode}
                       </dd>
                     </div>
-                    <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                      <dt className="text-slate-500 dark:text-zinc-400">Spieler</dt>
-                      <dd className="font-semibold text-ink dark:text-zinc-100">
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/15 px-3 py-2">
+                      <dt className="text-emerald-50/60">Spieler</dt>
+                      <dd className="font-semibold text-white">
                         {game._count.players}
                       </dd>
                     </div>
                   </dl>
 
-                  <div className="mt-auto">
-                    <Link className={buttonVariants("secondary")} href={`/games/${game.id}`}>
+                  <div className="mt-auto flex items-end justify-between gap-2">
+                    <Link className={`${buttonVariants("secondary")} border-white/15 bg-white/10 text-white hover:bg-white/15`} href={`/games/${game.id}`}>
                       Oeffnen
                       <DoorOpen aria-hidden="true" className="h-4 w-4" />
                     </Link>
+                    <GameExitButton gameId={game.id} isOwner={isOwner} />
                   </div>
                 </div>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
+
+      {archivedGamePlayers.length > 0 ? (
+        <section className="grid min-w-0 max-w-full gap-3">
+          <details className="group min-w-0 max-w-full overflow-hidden rounded-lg border border-white/10 bg-white/[0.08] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+            <summary className="grid min-w-0 cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold tracking-tight text-white">
+                  Archiv
+                </h2>
+                <p className="text-sm text-emerald-50/60">
+                  {archivedGamePlayers.length} Runden im Archiv
+                </p>
+              </div>
+              <span className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold text-emerald-50 transition-colors group-open:bg-white/15">
+                Archiv anzeigen
+              </span>
+            </summary>
+            <div className="mt-4 grid min-w-0 gap-2">
+              {archivedGamePlayers.map(({ game }) => {
+                const isOwner = game.ownerId === user.id;
+
+                return (
+                  <div
+                    className="grid min-w-0 gap-2 rounded-lg border border-white/10 bg-black/15 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3"
+                    key={game.id}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-white">
+                          {game.name}
+                        </p>
+                        <Badge className="shrink-0" variant="neutral">{formatGameStatus(game)}</Badge>
+                      </div>
+                      <p className="mt-0.5 text-xs text-emerald-50/60">
+                        Aktualisiert am {formatDate(game.updatedAt)} / {game._count.players} Spieler
+                      </p>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 sm:shrink-0 sm:justify-end">
+                      <Link
+                        className="rounded-md px-2 py-1 text-xs font-semibold text-emerald-50/75 transition-colors hover:bg-white/10 hover:text-white"
+                        href={`/games/${game.id}`}
+                      >
+                        Oeffnen
+                      </Link>
+                      <GameExitButton gameId={game.id} isOwner={isOwner} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
+        </section>
+      ) : null}
     </PageContainer>
+    </>
   );
 }

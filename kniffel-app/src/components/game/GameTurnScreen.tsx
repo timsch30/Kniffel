@@ -1,15 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, FilePenLine, X } from "lucide-react";
+import useEmblaCarousel from "embla-carousel-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { gsap } from "gsap";
+import { ArrowLeft, CheckCircle2, Dices, FilePenLine, Smartphone, Trophy, X } from "lucide-react";
 
 import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
-import { ScoreEntryForm } from "@/components/game/ScoreEntryForm";
+import { ScoreEntryForm, type ScoreSaveFeedback } from "@/components/game/ScoreEntryForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { getFilledCategoryCount, getPlayerScoreCard, isUserTurn } from "@/game/game-state";
+import {
+  canUserManageCurrentTurn,
+  getFilledCategoryCount,
+  getNextPlayer,
+  getPlayerScoreCard
+} from "@/game/game-state";
 import { scoreCategories } from "@/game/scorecard";
 import type { GameState } from "@/game/state";
 import { cn } from "@/lib/cn";
@@ -22,6 +29,16 @@ type GameTurnScreenProps = {
   state: GameState;
 };
 
+type TurnFeedback = {
+  bonusAwarded: boolean;
+  id: number;
+  leaderName?: string;
+  nextIsCurrentUser: boolean;
+  nextPlayerName: string;
+  roundNumber: number;
+  upperScore?: number;
+};
+
 export function GameTurnScreen({
   currentUserId,
   enterScoreAction,
@@ -30,138 +47,337 @@ export function GameTurnScreen({
   state
 }: GameTurnScreenProps) {
   const [entryOpen, setEntryOpen] = useState(false);
-  const playerCardRefs = useRef<Record<string, HTMLElement | null>>({});
-  const playerRowRef = useRef<HTMLDivElement | null>(null);
+  const [rollMode, setRollMode] = useState<"real" | "online" | null>(null);
+  const [showRollModePicker, setShowRollModePicker] = useState(false);
+  const [turnFeedback, setTurnFeedback] = useState<TurnFeedback | null>(null);
+  const [viewedPlayerId, setViewedPlayerId] = useState(
+    () =>
+      state.currentPlayerId ??
+      state.players.find((player) => player.userId === currentUserId)?.id ??
+      state.players[0]?.id ??
+      ""
+  );
+  const playerIds = state.players.map((player) => player.id);
+  const playerIdsKey = playerIds.join("|");
+  const canLoopPlayers = state.players.length > 1;
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    align: "center",
+    loop: canLoopPlayers,
+    skipSnaps: false
+  });
+  const playersRef = useRef(state.players);
   const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
+  const previousPlayerIdsKeyRef = useRef(playerIdsKey);
   const hasInitialAutoScrollRef = useRef(false);
+  const turnBonusRef = useRef<HTMLSpanElement | null>(null);
+  const turnFeedbackTimeoutRef = useRef<number | null>(null);
+  const shouldReduceMotion = useReducedMotion();
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
+  const viewedPlayer = state.players.find((player) => player.id === viewedPlayerId);
+  const viewedPlayerScoreCard = viewedPlayer ? getPlayerScoreCard(state, viewedPlayer.id) : null;
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
-  const currentUserScoreCard = currentUserPlayer
-    ? getPlayerScoreCard(state, currentUserPlayer.id)
-    : null;
-  const userTurn = isUserTurn(state, currentUserId);
-  const filledCount = getFilledCategoryCount(currentUserScoreCard);
-  const total = currentUserScoreCard?.total ?? 0;
+  const activeScoreCard = currentPlayer ? getPlayerScoreCard(state, currentPlayer.id) : null;
+  const canManageTurn = canUserManageCurrentTurn(state, currentUserId);
+  const filledCount = getFilledCategoryCount(activeScoreCard);
+  const viewedTotal = viewedPlayerScoreCard?.total ?? 0;
+
+  const handleEmblaSelect = useCallback(() => {
+    if (!emblaApi) {
+      return;
+    }
+
+    const selectedPlayer = playersRef.current[emblaApi.selectedScrollSnap()];
+
+    if (selectedPlayer) {
+      setViewedPlayerId(selectedPlayer.id);
+    }
+  }, [emblaApi]);
+
+  function showSavedFeedback(scoreFeedback?: ScoreSaveFeedback) {
+    const nextPlayer = getNextPlayer(state);
+
+    if (turnFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(turnFeedbackTimeoutRef.current);
+    }
+
+    setTurnFeedback({
+      bonusAwarded: scoreFeedback?.bonusAwarded ?? false,
+      id: Date.now(),
+      leaderName: state.ranking[0]?.displayName,
+      nextIsCurrentUser: nextPlayer?.userId === currentUserId,
+      nextPlayerName: nextPlayer?.displayName ?? "naechster Spieler",
+      roundNumber: state.roundNumber,
+      upperScore: scoreFeedback?.upperScore
+    });
+
+    turnFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setTurnFeedback(null);
+      turnFeedbackTimeoutRef.current = null;
+    }, shouldReduceMotion ? 1000 : 1350);
+  }
 
   useEffect(() => {
-    const playerChanged = previousCurrentPlayerIdRef.current !== state.currentPlayerId;
+    if (!turnFeedback?.bonusAwarded || !turnBonusRef.current || shouldReduceMotion) {
+      return;
+    }
 
-    if (!playerChanged && hasInitialAutoScrollRef.current) {
+    gsap.fromTo(
+      turnBonusRef.current,
+      {
+        boxShadow: "0 0 0 0 rgba(244,185,66,0)",
+        scale: 0.82,
+        y: 8
+      },
+      {
+        boxShadow: "0 0 0 5px rgba(244,185,66,0.22), 0 18px 48px rgba(244,185,66,0.26)",
+        duration: 0.58,
+        ease: "back.out(2.3)",
+        scale: 1,
+        y: 0
+      }
+    );
+  }, [shouldReduceMotion, turnFeedback]);
+
+  useEffect(() => {
+    playersRef.current = state.players;
+  }, [state.players]);
+
+  useEffect(() => {
+    if (!emblaApi) {
+      return;
+    }
+
+    handleEmblaSelect();
+    emblaApi.on("select", handleEmblaSelect);
+    emblaApi.on("reInit", handleEmblaSelect);
+
+    return () => {
+      emblaApi.off("select", handleEmblaSelect);
+      emblaApi.off("reInit", handleEmblaSelect);
+    };
+  }, [emblaApi, handleEmblaSelect]);
+
+  useEffect(() => {
+    if (!emblaApi) {
+      return;
+    }
+
+    emblaApi.reInit();
+  }, [emblaApi, playerIdsKey]);
+
+  useEffect(() => {
+    if (!emblaApi || !state.currentPlayerId) {
+      return;
+    }
+
+    const playerChanged = previousCurrentPlayerIdRef.current !== state.currentPlayerId;
+    const playerOrderChanged = previousPlayerIdsKeyRef.current !== playerIdsKey;
+
+    if (!playerChanged && !playerOrderChanged && hasInitialAutoScrollRef.current) {
       return;
     }
 
     previousCurrentPlayerIdRef.current = state.currentPlayerId;
+    previousPlayerIdsKeyRef.current = playerIdsKey;
     hasInitialAutoScrollRef.current = true;
 
-    const frameId = window.requestAnimationFrame(() => {
-      if (!state.currentPlayerId) {
-        return;
-      }
+    const currentPlayerIndex = playersRef.current.findIndex(
+      (player) => player.id === state.currentPlayerId
+    );
 
-      const activeCard = playerCardRefs.current[state.currentPlayerId];
-      const playerRow = playerRowRef.current;
+    if (currentPlayerIndex === -1) {
+      return;
+    }
 
-      if (!activeCard || !playerRow) {
-        return;
-      }
+    setViewedPlayerId(state.currentPlayerId);
+    emblaApi.scrollTo(currentPlayerIndex, shouldReduceMotion === true);
+  }, [emblaApi, playerIdsKey, shouldReduceMotion, state.currentPlayerId]);
 
-      const styles = window.getComputedStyle(playerRow);
-      const paddingLeft = Number.parseFloat(styles.paddingLeft) || 0;
-      const maxScrollLeft = Math.max(0, playerRow.scrollWidth - playerRow.clientWidth);
-      const nextLeft = Math.min(Math.max(activeCard.offsetLeft - paddingLeft, 0), maxScrollLeft);
+  useEffect(() => {
+    if (canManageTurn && !rollMode) {
+      setShowRollModePicker(true);
+    }
+  }, [canManageTurn, rollMode]);
 
-      playerRow.scrollTo({
-        behavior: "smooth",
-        left: nextLeft
-      });
-    });
+  useEffect(() => {
+    if (state.players.some((player) => player.id === viewedPlayerId)) {
+      return;
+    }
 
+    setViewedPlayerId(state.currentPlayerId ?? state.players[0]?.id ?? "");
+  }, [state.currentPlayerId, state.players, viewedPlayerId]);
+
+  useEffect(() => {
     return () => {
-      window.cancelAnimationFrame(frameId);
+      if (turnFeedbackTimeoutRef.current !== null) {
+        window.clearTimeout(turnFeedbackTimeoutRef.current);
+      }
     };
-  }, [state.currentPlayerId]);
+  }, []);
 
   return (
-    <section className="relative -mx-4 min-h-[100svh] bg-slate-50 px-4 pb-32 pt-3 sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-slate-200/80 sm:bg-white/70 sm:p-5 sm:pb-32 sm:shadow-card sm:backdrop-blur-xl dark:bg-zinc-950 dark:sm:border-white/10 dark:sm:bg-zinc-900/70 dark:sm:shadow-card-dark">
+    <section className="relative -mx-4 min-h-[100svh] overflow-hidden px-4 pb-32 pt-0 text-white sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-white/10 sm:bg-white/[0.06] sm:px-5 sm:pb-32 sm:pt-0 sm:shadow-[0_28px_90px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(244,185,66,0.14),transparent_28rem),radial-gradient(circle_at_15%_18%,rgba(16,185,129,0.15),transparent_24rem)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.06] [background-image:linear-gradient(90deg,white_1px,transparent_1px),linear-gradient(white_1px,transparent_1px)] [background-size:32px_32px]"
+      />
       <div className="grid gap-4">
-        <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200/70 bg-slate-50/95 px-4 py-3 backdrop-blur-xl sm:static sm:mx-0 sm:rounded-lg sm:border sm:bg-white/80 dark:border-white/10 dark:bg-zinc-950/95 dark:sm:bg-white/5">
+        <div className="sticky top-0 z-20 -mx-4 border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:static sm:mx-0 sm:rounded-lg sm:border sm:bg-white/[0.08]">
           <div className="flex items-center justify-between gap-3">
             <button
               aria-label="Zurueck zur Uebersicht"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-white/10 dark:text-zinc-50"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.08] text-emerald-50 shadow-sm transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.13]"
               onClick={onBackToLobby}
               type="button"
             >
               <ArrowLeft aria-hidden="true" className="h-5 w-5" />
             </button>
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xl font-semibold tracking-tight text-ink dark:text-zinc-50">
+              <h1 className="truncate text-xl font-semibold tracking-tight text-white">
                 {state.name}
               </h1>
-              <p className="mt-0.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+              <p className="mt-0.5 text-sm font-medium text-emerald-100/80">
                 Am Zug: {currentPlayer?.displayName ?? "offen"}
               </p>
             </div>
-            <div className="shrink-0 rounded-lg bg-ink px-3 py-2 text-right text-white dark:bg-white dark:text-zinc-950">
+            <div className="shrink-0 rounded-lg border border-brass/30 bg-brass/95 px-3 py-2 text-right text-emerald-950 shadow-[0_12px_30px_rgba(244,185,66,0.18)]">
               <p className="text-[0.68rem] font-semibold uppercase opacity-70">Punkte</p>
-              <p className="text-base font-semibold tabular-nums">{total}</p>
+              <p className="text-base font-semibold tabular-nums">{viewedTotal}</p>
             </div>
           </div>
         </div>
 
-        <div
-          className="-mx-4 overflow-x-auto px-4 pb-3 [scroll-snap-type:x_mandatory] sm:mx-0 sm:px-0"
-          ref={playerRowRef}
-        >
-          <div className="flex gap-4">
+        <div className="-mx-4 overflow-hidden px-4 pb-3 sm:mx-0 sm:px-0" ref={emblaRef}>
+          <div className="flex touch-pan-y gap-4">
             {state.players.map((player) => {
               const scoreCard = getPlayerScoreCard(state, player.id);
               const active = player.id === state.currentPlayerId;
+              const viewed = player.id === viewedPlayerId;
               const own = player.id === currentUserPlayer?.id;
 
               return (
-                <article
-                  className={cn(
-                    "w-[min(86vw,28rem)] shrink-0 scroll-ml-4 rounded-lg border bg-white/85 p-4 shadow-sm [scroll-snap-align:start] dark:bg-white/5",
-                    active
-                      ? "border-emerald-500/35 dark:border-emerald-300/30"
-                      : "border-slate-200 dark:border-white/10"
-                  )}
+                <div
+                  className="min-w-0 shrink-0 grow-0"
                   key={player.id}
-                  ref={(element) => {
-                    playerCardRefs.current[player.id] = element;
-                  }}
+                  style={{ flexBasis: "min(calc(100vw - 2rem), 28rem)" }}
                 >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="truncate text-lg font-semibold text-ink dark:text-zinc-50">
-                        {player.displayName}
-                      </h2>
-                      <p className="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">
-                        Position {player.position}
-                      </p>
+                  <motion.article
+                    animate={
+                      shouldReduceMotion
+                        ? { opacity: 1 }
+                        : {
+                            opacity: viewed ? 1 : 0.52,
+                            scale: viewed ? 1 : 0.93,
+                            y: viewed ? (active ? -4 : -2) : 12
+                          }
+                    }
+                    className={cn(
+                      "relative h-full overflow-hidden rounded-lg border p-4 shadow-[0_16px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl will-change-transform",
+                      active
+                        ? "border-brass/45 bg-[linear-gradient(145deg,rgba(244,185,66,0.16),rgba(255,255,255,0.09))]"
+                        : viewed
+                          ? "border-emerald-300/25 bg-white/[0.1]"
+                          : "border-white/10 bg-white/[0.06]"
+                    )}
+                    initial={false}
+                    layout="position"
+                    transition={
+                      shouldReduceMotion
+                        ? { duration: 0.01 }
+                        : { damping: 24, mass: 0.9, stiffness: 260, type: "spring" }
+                    }
+                  >
+                    {active ? (
+                      <motion.span
+                        aria-hidden="true"
+                        animate={
+                          shouldReduceMotion
+                            ? { opacity: 0.35 }
+                            : { opacity: [0.22, 0.42, 0.22], scale: [0.96, 1.04, 0.96] }
+                        }
+                        className="absolute -right-10 -top-12 h-32 w-32 rounded-full bg-brass/20 blur-2xl"
+                        transition={
+                          shouldReduceMotion
+                            ? { duration: 0.01 }
+                            : { duration: 2.8, ease: "easeInOut", repeat: Infinity }
+                        }
+                      />
+                    ) : null}
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="truncate text-lg font-semibold text-white">
+                          {player.displayName}
+                        </h2>
+                        <p className="mt-0.5 text-xs text-emerald-50/60">
+                          Position {player.position}
+                        </p>
+                      </div>
+                      <Badge variant={active ? "success" : own ? "accent" : "neutral"}>
+                        {active ? "am Zug" : own ? "du" : `${scoreCard?.total ?? 0}`}
+                      </Badge>
                     </div>
-                    <Badge variant={active ? "success" : own ? "accent" : "neutral"}>
-                      {active ? "am Zug" : own ? "du" : `${scoreCard?.total ?? 0}`}
-                    </Badge>
-                  </div>
-                  <ScoreCardBlock compact scoreCard={scoreCard} />
-                </article>
+                    <ScoreCardBlock compact scoreCard={scoreCard} />
+                  </motion.article>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-white/[0.08] p-3 shadow-[0_16px_44px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-white">Platzierung</h2>
+            {viewedPlayer ? (
+              <Badge variant="neutral" className="max-w-36 truncate">
+                {viewedPlayer.displayName}
+              </Badge>
+            ) : null}
+          </div>
+          <div className="grid gap-1.5">
+            {state.ranking.map((entry) => {
+              const viewed = entry.playerId === viewedPlayerId;
+              const active = entry.isCurrentPlayer;
+
+              return (
+                <motion.div
+                  animate={{ opacity: 1, y: 0 }}
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-md border px-2 py-1.5 text-sm transition-colors",
+                    active
+                      ? "border-brass/35 bg-brass/[0.12] font-semibold text-amber-50 shadow-sm"
+                      : viewed
+                        ? "border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-50"
+                        : "border-transparent text-emerald-50/60"
+                  )}
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 4 }}
+                  key={entry.playerId}
+                  layout="position"
+                  transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.18 }}
+                >
+                  <span className="min-w-0 truncate">
+                    {entry.rank}. {entry.displayName}
+                  </span>
+                  <span className="shrink-0 tabular-nums">{entry.total}</span>
+                </motion.div>
               );
             })}
           </div>
         </div>
       </div>
 
-      {userTurn && currentUserScoreCard ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95 dark:shadow-[0_-18px_44px_rgba(0,0,0,0.45)]">
+      {canManageTurn && activeScoreCard ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400">
+              <p className="text-xs font-semibold text-emerald-50/60">
                 {filledCount}/{scoreCategories.length} Felder belegt
               </p>
-              <p className="truncate text-sm font-semibold text-ink dark:text-zinc-50">
-                Kategorie eintragen
+              <p className="truncate text-sm font-semibold text-white">
+                Fuer {currentPlayer?.displayName ?? "Spieler"} eintragen
               </p>
             </div>
             <Button className="min-h-12 px-6" onClick={() => setEntryOpen(true)} type="button">
@@ -169,31 +385,99 @@ export function GameTurnScreen({
               Eintragen
             </Button>
           </div>
+
         </div>
       ) : null}
 
       <AnimatePresence>
-        {entryOpen && currentUserScoreCard ? (
+        {turnFeedback ? (
+          <motion.div
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            aria-live="polite"
+            className="pointer-events-none fixed inset-0 z-[95] grid place-items-center p-4"
+            exit={{ opacity: 0, y: shouldReduceMotion ? 0 : -8, scale: 0.98 }}
+            initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 10, scale: 0.98 }}
+            key={turnFeedback.id}
+            role="status"
+            transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.2, ease: "easeOut" }}
+          >
+            <div className="relative w-full max-w-sm overflow-hidden rounded-lg border border-brass/30 bg-[linear-gradient(145deg,rgba(6,78,59,0.96),rgba(2,23,19,0.96))] p-4 text-white shadow-2xl">
+              <motion.span
+                aria-hidden="true"
+                animate={shouldReduceMotion ? { opacity: 0.18 } : { opacity: [0.12, 0.28, 0.12] }}
+                className="absolute inset-x-8 top-0 h-px bg-brass"
+                transition={
+                  shouldReduceMotion ? { duration: 0.01 } : { duration: 1.2, repeat: Infinity }
+                }
+              />
+              <div className="flex items-start gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-emerald-300/20 bg-emerald-300/10 text-emerald-100">
+                  <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">Score gespeichert</p>
+                  <p className="mt-1 text-sm text-emerald-50/75">
+                    {turnFeedback.bonusAwarded
+                      ? `Oberer Bonus erreicht. Weiter: ${turnFeedback.nextPlayerName}`
+                      : turnFeedback.nextIsCurrentUser
+                        ? "Du bist wieder dran."
+                        : `Weiter: ${turnFeedback.nextPlayerName}`}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-emerald-50/70">
+                    <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1">
+                      Runde {turnFeedback.roundNumber}
+                    </span>
+                    {turnFeedback.bonusAwarded ? (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border border-brass/35 bg-brass px-2 py-1 text-emerald-950"
+                        ref={turnBonusRef}
+                      >
+                        +35 Bonus
+                        {turnFeedback.upperScore ? (
+                          <span className="opacity-75">({turnFeedback.upperScore} oben)</span>
+                        ) : null}
+                      </span>
+                    ) : null}
+                    {turnFeedback.leaderName ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-brass/20 bg-brass/[0.12] px-2 py-1 text-amber-100">
+                        <Trophy aria-hidden="true" className="h-3.5 w-3.5" />
+                        {turnFeedback.leaderName}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {entryOpen && canManageTurn && activeScoreCard ? (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
-            className="fixed inset-0 z-[60] overflow-y-auto bg-slate-50 text-ink dark:bg-zinc-950 dark:text-zinc-50"
+            className="fixed inset-0 z-[60] overflow-y-auto bg-emerald-950 text-white"
             exit={{ opacity: 0, y: 16 }}
             initial={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
           >
-            <div className="sticky top-0 z-[70] border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95">
+            <div
+              aria-hidden="true"
+              className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(244,185,66,0.13),transparent_26rem),radial-gradient(circle_at_15%_18%,rgba(16,185,129,0.14),transparent_24rem),linear-gradient(180deg,#064e3b,#021713)]"
+            />
+            <div className="sticky top-0 z-[70] border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.26)] backdrop-blur-xl">
               <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-300">
+                  <p className="text-xs font-bold uppercase text-brass">
                     Eintragen
                   </p>
-                  <h2 className="truncate text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">
-                    Wuerfel und Kategorie
+                  <h2 className="truncate text-lg font-semibold tracking-tight text-white">
+                    {currentPlayer?.displayName ?? "Wuerfel und Kategorie"}
                   </h2>
                 </div>
                 <button
                   aria-label="Eintragen schliessen"
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-ink shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/10 dark:bg-white/10 dark:text-zinc-50"
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.08] text-emerald-50 shadow-sm transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.13]"
                   onClick={() => setEntryOpen(false)}
                   type="button"
                 >
@@ -205,12 +489,51 @@ export function GameTurnScreen({
             <div className="mx-auto max-w-2xl px-4 py-5">
               <ScoreEntryForm
                 action={enterScoreAction}
-                onSaved={() => {
+                onlineRollMode={rollMode === "online"}
+                onSaved={(scoreFeedback) => {
+                  showSavedFeedback(scoreFeedback);
                   setEntryOpen(false);
                   onSaved();
                 }}
-                scoreCard={currentUserScoreCard}
+                scoreCard={activeScoreCard}
               />
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showRollModePicker && canManageTurn ? (
+          <motion.div
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 backdrop-blur-sm"
+            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+          >
+            <div className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+              <button
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-5 text-center text-emerald-50 shadow-xl backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12]"
+                onClick={() => {
+                  setRollMode("real");
+                  setShowRollModePicker(false);
+                }}
+                type="button"
+              >
+                <Dices className="mx-auto h-10 w-10 text-emerald-100" />
+                <span className="text-lg font-semibold">Echte Wuerfel</span>
+              </button>
+              <button
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-brass/35 bg-[linear-gradient(145deg,rgba(244,185,66,0.18),rgba(16,185,129,0.12))] p-5 text-center text-white shadow-xl backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-brass/60 hover:bg-brass/15"
+                onClick={() => {
+                  setRollMode("online");
+                  setShowRollModePicker(false);
+                  setEntryOpen(true);
+                }}
+                type="button"
+              >
+                <Smartphone className="mx-auto h-10 w-10 text-brass" />
+                <span className="text-lg font-semibold">Online Wuerfel</span>
+              </button>
             </div>
           </motion.div>
         ) : null}

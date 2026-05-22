@@ -12,27 +12,27 @@ type LeaderboardProps = {
 
 function podiumStyle(rank: number): string {
   if (rank === 1) {
-    return "border-brass/40 bg-amber-50/85 dark:border-amber-300/25 dark:bg-amber-300/10";
+    return "border-brass/45 bg-brass/15";
   }
 
   if (rank === 2) {
-    return "border-slate-300 bg-slate-50/90 dark:border-zinc-500/30 dark:bg-white/[0.06]";
+    return "border-white/15 bg-white/10";
   }
 
   if (rank === 3) {
-    return "border-orange-300/60 bg-orange-50/80 dark:border-orange-300/25 dark:bg-orange-300/10";
+    return "border-amber-200/25 bg-amber-200/10";
   }
 
-  return "border-slate-200/80 bg-white/75 dark:border-white/10 dark:bg-white/[0.03]";
+  return "border-white/10 bg-black/15";
 }
 
 export function Leaderboard({ entries }: LeaderboardProps) {
   return (
-    <Card className="p-4">
+    <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-ink dark:text-zinc-50">Ranking</h2>
-          <p className="text-sm text-slate-500 dark:text-zinc-400">Siege, Schnitt und Kniffel</p>
+          <h2 className="text-lg font-semibold tracking-tight text-white">Ranking</h2>
+          <p className="text-sm text-emerald-50/70">Siege, Schnitt und Kniffel</p>
         </div>
         <Trophy aria-hidden="true" className="h-5 w-5 text-brass" />
       </div>
@@ -47,7 +47,7 @@ export function Leaderboard({ entries }: LeaderboardProps) {
             key={entry.player.id}
           >
             <div className="flex items-center gap-2">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-sm font-bold text-ink shadow-sm ring-1 ring-slate-200 dark:bg-zinc-950 dark:text-zinc-50 dark:ring-white/10">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-white/12 text-sm font-bold text-white shadow-sm ring-1 ring-white/10">
                 {entry.rank === 1 ? <Crown aria-hidden="true" className="h-4 w-4 text-brass" /> : entry.rank}
               </span>
               <PlayerAvatar className="h-10 w-10 rounded-2xl text-xs" player={entry.player} />
@@ -55,21 +55,21 @@ export function Leaderboard({ entries }: LeaderboardProps) {
 
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-semibold text-ink dark:text-zinc-50">
+                <p className="truncate text-sm font-semibold text-white">
                   {entry.player.name}
                 </p>
                 {entry.rank <= 3 ? <Badge variant="warning">Top {entry.rank}</Badge> : null}
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                <span className="rounded-md bg-white/70 px-2 py-1 text-slate-600 dark:bg-white/[0.05] dark:text-zinc-400">
-                  Siege <strong className="text-ink dark:text-zinc-100">{entry.wins}</strong>
+                <span className="rounded-md bg-white/10 px-2 py-1 text-emerald-50/70">
+                  Siege <strong className="text-white">{entry.wins}</strong>
                 </span>
-                <span className="rounded-md bg-white/70 px-2 py-1 text-slate-600 dark:bg-white/[0.05] dark:text-zinc-400">
-                  Schnitt <strong className="text-ink dark:text-zinc-100">{entry.averagePoints}</strong>
+                <span className="rounded-md bg-white/10 px-2 py-1 text-emerald-50/70">
+                  Schnitt <strong className="text-white">{entry.averagePoints}</strong>
                 </span>
-                <span className="rounded-md bg-white/70 px-2 py-1 text-slate-600 dark:bg-white/[0.05] dark:text-zinc-400">
+                <span className="rounded-md bg-white/10 px-2 py-1 text-emerald-50/70">
                   <Sparkles aria-hidden="true" className="mr-1 inline h-3 w-3" />
-                  <strong className="text-ink dark:text-zinc-100">{entry.totalKniffel}</strong>
+                  <strong className="text-white">{entry.totalKniffel}</strong>
                 </span>
               </div>
             </div>

@@ -1,19 +1,22 @@
 import { Ban, CheckCircle2, Circle, LockKeyhole } from "lucide-react";
 
+import type { ScoreSuggestion } from "@/game/scoring";
 import {
-  getFilledCategoryCount,
-  getLowerSectionScore,
-  getUpperSectionScore
-} from "@/game/game-state";
-import { scoreCategories, scoreCategoryLabels, upperScoreCategories } from "@/game/scorecard";
-import type { GameStateScoreCard } from "@/game/state";
-import type { ScoreCategory } from "@/game/types";
+  normalizeStruckCategories,
+  scoreCategories,
+  scoreCategoryLabels,
+  upperScoreCategories
+} from "@/game/scorecard";
+import type { ScoreCard, ScoreCategory } from "@/game/types";
 import { cn } from "@/lib/cn";
 
 type ScoreCardBlockProps = {
   className?: string;
   compact?: boolean;
-  scoreCard: GameStateScoreCard | null | undefined;
+  onSelectCategory?: (category: ScoreCategory) => void;
+  scoreCard: ScoreCard | null | undefined;
+  scoreSuggestions?: ScoreSuggestion[];
+  selectedCategory?: ScoreCategory | null;
 };
 
 const upperScoreCategorySet = new Set<ScoreCategory>(upperScoreCategories);
@@ -30,31 +33,33 @@ const upperCategoryDivisors: Partial<Record<ScoreCategory, number>> = {
 function CategoryRow({
   category,
   compact = false,
-  scoreCard
+  onSelectCategory,
+  recommendedCategory,
+  scoreCard,
+  selectedCategory,
+  suggestion
 }: {
   category: ScoreCategory;
   compact?: boolean;
-  scoreCard: GameStateScoreCard;
+  onSelectCategory?: (category: ScoreCategory) => void;
+  recommendedCategory?: ScoreCategory | null;
+  scoreCard: ScoreCard;
+  selectedCategory?: ScoreCategory | null;
+  suggestion?: ScoreSuggestion;
 }) {
   const value = scoreCard[category];
   const open = value === null || value === undefined;
-  const struck = !open && (scoreCard.struckCategories?.includes(category) ?? false);
+  const struck = !open && normalizeStruckCategories(scoreCard.struckCategories).includes(category);
   const divisor = upperCategoryDivisors[category];
   const displayedValue =
     !open && divisor && !struck ? `${value} (${Math.floor(value / divisor)})` : value;
-
-  return (
-    <div
-      className={cn(
-        "flex items-center justify-between gap-3 rounded-lg px-3 transition-colors",
-        compact ? "min-h-9 py-1.5" : "min-h-11 py-2",
-        struck
-          ? "border border-rose-200/80 bg-rose-50/90 text-rose-900 dark:border-rose-300/15 dark:bg-rose-950/25 dark:text-rose-100"
-          : open
-          ? "bg-emerald-50/70 text-ink dark:bg-emerald-300/10 dark:text-zinc-50"
-          : "bg-slate-100/80 text-slate-600 dark:bg-white/5 dark:text-zinc-400"
-      )}
-    >
+  const interactive = Boolean(onSelectCategory);
+  const selectable = Boolean(interactive && open && suggestion && !suggestion.used);
+  const selected = selectedCategory === category;
+  const recommended = recommendedCategory === category;
+  const suggestionIsStrike = suggestion?.action === "strike";
+  const content = (
+    <>
       <span className="flex min-w-0 items-center gap-2">
         {struck ? (
           <Ban aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-300" />
@@ -78,18 +83,84 @@ function CategoryRow({
           </span>
         ) : null}
       </span>
-      <span
-        className={cn(
-          "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
-          struck
-            ? "bg-rose-100 text-rose-800 dark:bg-rose-300/10 dark:text-rose-100"
-            : open
-            ? "bg-white/80 text-emerald-700 dark:bg-white/10 dark:text-emerald-200"
-            : "bg-white/80 text-slate-700 dark:bg-white/10 dark:text-zinc-300"
-        )}
-      >
-        {open ? "frei" : displayedValue}
+      <span className="flex shrink-0 items-center gap-1.5">
+        {open && suggestion ? (
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
+              recommended
+                ? suggestionIsStrike
+                  ? "bg-rose-100 text-rose-800 dark:bg-rose-300/10 dark:text-rose-100"
+                  : "bg-amber-100 text-amber-800 dark:bg-amber-300/10 dark:text-amber-100"
+                : suggestionIsStrike
+                  ? "bg-rose-50 text-rose-700 dark:bg-rose-300/10 dark:text-rose-100"
+                  : "bg-white/80 text-emerald-700 dark:bg-white/10 dark:text-emerald-200"
+            )}
+          >
+            {recommended ? "Tipp " : ""}
+            {suggestion.score}
+            {suggestionIsStrike ? " str." : " P"}
+          </span>
+        ) : null}
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
+            struck
+              ? "bg-rose-100 text-rose-800 dark:bg-rose-300/10 dark:text-rose-100"
+              : open
+                ? "bg-white/80 text-emerald-700 dark:bg-white/10 dark:text-emerald-200"
+                : "bg-white/80 text-slate-700 dark:bg-white/10 dark:text-zinc-300"
+          )}
+        >
+          {open ? (suggestion ? (selected ? "gewaehlt" : "frei") : "frei") : displayedValue}
+        </span>
       </span>
+    </>
+  );
+
+  if (interactive) {
+    return (
+      <button
+        aria-pressed={selected}
+        className={cn(
+          "flex w-full items-center justify-between gap-3 rounded-lg px-3 text-left transition-colors disabled:cursor-not-allowed",
+          compact ? "min-h-9 py-1.5" : "min-h-11 py-2",
+          selected
+            ? "border border-emerald-500 bg-emerald-50 text-ink ring-4 ring-emerald-500/15 dark:border-emerald-300/70 dark:bg-emerald-300/15 dark:text-zinc-50 dark:ring-emerald-300/15"
+            : struck
+              ? "border border-rose-200/80 bg-rose-50/90 text-rose-900 dark:border-rose-300/15 dark:bg-rose-950/25 dark:text-rose-100"
+              : open
+                ? selectable
+                  ? "border border-emerald-200/80 bg-emerald-50/70 text-ink hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-300/15 dark:bg-emerald-300/10 dark:text-zinc-50 dark:hover:border-emerald-300/35"
+                  : "border border-slate-200 bg-slate-50/70 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-500"
+                : "border border-slate-200 bg-slate-100/80 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400"
+        )}
+        disabled={!selectable}
+        onClick={() => {
+          if (selectable) {
+            onSelectCategory?.(category);
+          }
+        }}
+        type="button"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 rounded-lg px-3 transition-colors",
+        compact ? "min-h-9 py-1.5" : "min-h-11 py-2",
+        struck
+          ? "border border-rose-200/80 bg-rose-50/90 text-rose-900 dark:border-rose-300/15 dark:bg-rose-950/25 dark:text-rose-100"
+          : open
+            ? "bg-emerald-50/70 text-ink dark:bg-emerald-300/10 dark:text-zinc-50"
+            : "bg-slate-100/80 text-slate-600 dark:bg-white/5 dark:text-zinc-400"
+      )}
+    >
+      {content}
     </div>
   );
 }
@@ -97,12 +168,20 @@ function CategoryRow({
 function Section({
   categories,
   compact,
+  onSelectCategory,
+  recommendedCategory,
   scoreCard,
+  selectedCategory,
+  suggestionsByCategory,
   title
 }: {
   categories: readonly ScoreCategory[];
   compact?: boolean;
-  scoreCard: GameStateScoreCard;
+  onSelectCategory?: (category: ScoreCategory) => void;
+  recommendedCategory?: ScoreCategory | null;
+  scoreCard: ScoreCard;
+  selectedCategory?: ScoreCategory | null;
+  suggestionsByCategory?: Map<ScoreCategory, ScoreSuggestion>;
   title: string;
 }) {
   return (
@@ -125,7 +204,11 @@ function Section({
             category={category}
             compact={compact}
             key={category}
+            onSelectCategory={onSelectCategory}
+            recommendedCategory={recommendedCategory}
             scoreCard={scoreCard}
+            selectedCategory={selectedCategory}
+            suggestion={suggestionsByCategory?.get(category)}
           />
         ))}
       </div>
@@ -133,12 +216,7 @@ function Section({
   );
 }
 
-function UpperSubtotal({
-  upperScore
-}: {
-  compact?: boolean;
-  upperScore: number;
-}) {
+function UpperSubtotal({ upperScore }: { compact?: boolean; upperScore: number }) {
   const bonusReached = upperScore >= 63;
   const bonusHint = bonusReached ? "+35 Bonus" : `${63 - upperScore} bis Bonus`;
 
@@ -153,7 +231,7 @@ function UpperSubtotal({
     >
       <span>Zwischensumme oben</span>
       <span className="shrink-0 font-semibold tabular-nums">
-        {upperScore} · {bonusHint}
+        {upperScore} - {bonusHint}
       </span>
     </div>
   );
@@ -168,7 +246,28 @@ function TotalSubtotal({ total }: { total: number }) {
   );
 }
 
-export function ScoreCardBlock({ className, compact = false, scoreCard }: ScoreCardBlockProps) {
+function getFilledCategoryCount(scoreCard: ScoreCard): number {
+  return scoreCategories.filter(
+    (category) => scoreCard[category] !== null && scoreCard[category] !== undefined
+  ).length;
+}
+
+function getUpperSectionScore(scoreCard: ScoreCard): number {
+  return upperScoreCategories.reduce((sum, category) => sum + (scoreCard[category] ?? 0), 0);
+}
+
+function getLowerSectionScore(scoreCard: ScoreCard): number {
+  return lowerScoreCategories.reduce((sum, category) => sum + (scoreCard[category] ?? 0), 0);
+}
+
+export function ScoreCardBlock({
+  className,
+  compact = false,
+  onSelectCategory,
+  scoreCard,
+  scoreSuggestions,
+  selectedCategory
+}: ScoreCardBlockProps) {
   if (!scoreCard) {
     return (
       <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
@@ -181,6 +280,26 @@ export function ScoreCardBlock({ className, compact = false, scoreCard }: ScoreC
   const upperScore = getUpperSectionScore(scoreCard);
   const lowerScore = getLowerSectionScore(scoreCard);
   const total = scoreCard.total ?? upperScore + lowerScore + (scoreCard.upperBonus ?? 0);
+  const openSuggestions = scoreSuggestions?.filter((suggestion) => !suggestion.used) ?? [];
+  const recommendedCategory =
+    [...openSuggestions].sort((left, right) => {
+      const priorityDifference = right.priority - left.priority;
+
+      if (priorityDifference !== 0) {
+        return priorityDifference;
+      }
+
+      const scoreDifference = right.score - left.score;
+
+      if (scoreDifference !== 0) {
+        return scoreDifference;
+      }
+
+      return scoreCategories.indexOf(left.category) - scoreCategories.indexOf(right.category);
+    })[0]?.category ?? null;
+  const suggestionsByCategory = new Map(
+    scoreSuggestions?.map((suggestion) => [suggestion.category, suggestion]) ?? []
+  );
 
   return (
     <div className={cn("grid gap-4", className)}>
@@ -201,14 +320,22 @@ export function ScoreCardBlock({ className, compact = false, scoreCard }: ScoreC
       <Section
         categories={upperScoreCategories}
         compact={compact}
+        onSelectCategory={onSelectCategory}
+        recommendedCategory={recommendedCategory}
         scoreCard={scoreCard}
+        selectedCategory={selectedCategory}
+        suggestionsByCategory={suggestionsByCategory}
         title="Oberer Block"
       />
       <UpperSubtotal compact={compact} upperScore={upperScore} />
       <Section
         categories={lowerScoreCategories}
         compact={compact}
+        onSelectCategory={onSelectCategory}
+        recommendedCategory={recommendedCategory}
         scoreCard={scoreCard}
+        selectedCategory={selectedCategory}
+        suggestionsByCategory={suggestionsByCategory}
         title="Unterer Block"
       />
       <TotalSubtotal total={total} />

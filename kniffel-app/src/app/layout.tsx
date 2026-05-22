@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { Header } from "@/components/layout/Header";
+import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 
 import "./globals.css";
 
@@ -18,10 +19,12 @@ type RootLayoutProps = {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="de">
+    <html className="dark" lang="de">
       <body className="min-h-screen">
-        <Header />
-        {children}
+        <NotificationProvider>
+          <Header />
+          {children}
+        </NotificationProvider>
       </body>
     </html>
   );

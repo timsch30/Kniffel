@@ -1,16 +1,24 @@
 # Kniffel Online
 
-Responsive SaaS-MVP fuer eine Kniffel-Begleit-App. Die Spieler wuerfeln physisch mit echten Wuerfeln; die Web-App dient als digitaler Kniffelblock zur Dokumentation der Runde.
+Web-App als digitaler Kniffelblock fuer Runden mit echten Wuerfeln. Die App wuerfelt nicht selbst:
+Spieler tragen die physisch gewuerfelten Augenzahlen ein, die Punkte werden serverseitig berechnet.
 
-Der aktuelle Stand ist ein funktionaler MVP-Kern: Auth, Runden-Erstellung, Invite-Beitritt, digitaler Scoreblock, Prisma-Schema und lokale PostgreSQL-Datenbank per Docker Compose.
+Aktueller Stand: funktionaler MVP mit Auth, Dashboard, Social/Freunde, Runden-Erstellung,
+Invite-Beitritt, Spiel-Einladungen, digitalem Scoreblock, Ranking, Archiv und PostgreSQL per Docker.
+
+Live-Version: `https://kniffel.bodmerlos.de`
+
+Die Live-Version laeuft auf einem eigenen Mini-PC. Dieser dient als Webserver, betreibt die
+PostgreSQL-Datenbank und leitet den externen Zugriff per Reverse Proxy an die App weiter.
 
 ## Tech-Stack
 
-- Next.js mit App Router
+- Next.js 15 mit App Router
+- React 19
 - TypeScript
 - Tailwind CSS
-- PostgreSQL
 - Prisma ORM
+- PostgreSQL
 - Docker Compose
 - ESLint
 - bcrypt
@@ -27,29 +35,29 @@ Der aktuelle Stand ist ein funktionaler MVP-Kern: Auth, Runden-Erstellung, Invit
 npm install
 ```
 
-## Lokale Datenbank starten
+## Lokale Datenbank
 
 ```bash
 docker compose up -d
 ```
 
-Die lokale PostgreSQL-Datenbank laeuft danach auf `localhost:5432`.
+Die PostgreSQL-Datenbank laeuft danach auf `localhost:5432`.
 
-Konfiguration:
+Lokale Standardwerte:
 
-- `POSTGRES_USER=kniffel`
-- `POSTGRES_PASSWORD=kniffel_dev`
-- `POSTGRES_DB=kniffel`
+```text
+POSTGRES_USER=kniffel
+POSTGRES_PASSWORD=kniffel_dev
+POSTGRES_DB=kniffel
+```
 
-Die Daten werden im Docker-Volume `postgres_data` persistent gespeichert.
-
-## Environment anlegen
+## Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Inhalt fuer lokale Entwicklung:
+Lokaler Inhalt:
 
 ```env
 DATABASE_URL="postgresql://kniffel:kniffel_dev@localhost:5432/kniffel"
@@ -57,121 +65,126 @@ NEXTAUTH_SECRET="change-me-in-production"
 NEXTAUTH_URL="http://localhost:3000"
 ```
 
-Alle spaeter serverrelevanten Werte laufen ueber Umgebungsvariablen. Fuer Produktion muessen `DATABASE_URL`, `NEXTAUTH_SECRET` und `NEXTAUTH_URL` ersetzt werden.
+Fuer Produktion muessen `DATABASE_URL`, `NEXTAUTH_SECRET` und `NEXTAUTH_URL` ersetzt werden.
 
-## Prisma Migration ausfuehren
-
-```bash
-npx prisma migrate dev --name init
-```
-
-Optional Prisma Client neu generieren:
+## Prisma
 
 ```bash
+npx prisma migrate dev
 npx prisma generate
 ```
 
-## Dev-Server starten
+## Entwicklung starten
 
 ```bash
 npm run dev
 ```
 
-Danach ist die App lokal unter `http://localhost:3000` erreichbar.
+Die App ist danach unter `http://localhost:3000` erreichbar.
 
 ## Wichtige Seiten
 
 - `/` Startseite
-- `/login` Login-UI
-- `/register` Register-UI
-- `/dashboard` Dashboard-Platzhalter
+- `/login` Login
+- `/register` Registrierung
+- `/dashboard` Dashboard mit eigenen Runden, Requests und Statistiken
+- `/social` Freunde, Freundschaftsanfragen und Online-Status
 - `/games/new` Neue Runde
 - `/games/[gameId]` Spielseite
-- `/join/[inviteCode]` Beitrittsseite
+- `/join` Invite-Code eingeben
+- `/join/[inviteCode]` Direktbeitritt per Link
+
+## Funktionsumfang
+
+- Registrierung mit eindeutiger E-Mail und eindeutigem Username
+- Login per E-Mail oder Username
+- Passwort-Hashing mit bcrypt
+- Signierte HTTP-only Cookie-Session
+- Geschuetzte Seiten fuer eingeloggte Benutzer
+- Dashboard mit aktiven Runden, Lobbys, Archiv und offenen Requests
+- Runden erstellen, verlassen und als Owner loeschen
+- Lobby mit mindestens 2 Spielern starten
+- Beitritt per Invite-Code oder Invite-Link
+- Freundschaftsanfragen senden, annehmen, ablehnen und Freunde entfernen
+- Freunde online anzeigen
+- Freunde zu Runden einladen
+- Spiel-Einladungen annehmen oder ablehnen
+- Physische Wuerfelergebnisse als fuenf Augenzahlen eintragen
+- Automatische Punkteberechnung fuer alle freien Kategorien
+- Kategorie-Empfehlungen fuer den aktuellen Wurf
+- Serverseitige Neuberechnung beim Speichern
+- Automatischer Spielerwechsel nach Eintragung
+- Upper Bonus, Gesamtpunktzahl, Ranking und Gewinner-Ermittlung
+- Gewinner-Feier nur fuer den eingeloggten Gewinner
+- Inaktive aktive Spiele laufen aus und landen im Archiv
 
 ## Projektstruktur
 
 ```text
 kniffel-app/
-├─ prisma/
-│  └─ schema.prisma
-├─ src/
-│  ├─ app/
-│  ├─ components/
-│  │  ├─ ui/
-│  │  ├─ layout/
-│  │  └─ game/
-│  ├─ lib/
-│  ├─ game/
-│  └─ server/
-├─ docker-compose.yml
-├─ .env.example
-├─ README.md
-├─ package.json
-└─ tsconfig.json
+|- prisma/
+|  `- schema.prisma
+|- src/
+|  |- app/
+|  |  |- api/
+|  |  |- dashboard/
+|  |  |- games/
+|  |  |- join/
+|  |  |- login/
+|  |  |- register/
+|  |  `- social/
+|  |- components/
+|  |- game/
+|  |- lib/
+|  `- server/
+|- docker-compose.yml
+|- .env.example
+|- package.json
+`- README.md
 ```
 
-## Aktueller Funktionsumfang
+## Datenmodell
 
-- Saubere Next.js-App-Router-Struktur
-- Wiederverwendbare Komponenten fuer Button, Input, Card, Header und Layout
-- Responsive Platzhalterseiten fuer Start, Login, Registrierung, Dashboard, Spielanlage, Spielansicht und Join-Link
-- Prisma-Datenmodell fuer User, Game, GamePlayer, ScoreCard und Turn
-- Enums fuer Game- und Turn-Status
-- Eindeutige Felder fuer E-Mail, Username und Invite-Code
-- ScoreCard-Helfer fuer Bonus, Gesamtpunktzahl, belegte Kategorien und Spielende
-- Registrierung mit eindeutiger E-Mail und eindeutigem Username
-- Login mit E-Mail oder Username
-- Passwort-Hashing mit bcrypt
-- Signierte HTTP-only Cookie-Session
-- Logout im Header
-- Geschuetzte Seiten fuer `/dashboard`, `/games/new` und `/games/[gameId]`
-- Formularvalidierung und einfache Fehlermeldungen fuer Login und Registrierung
-- Echte Runden-Erstellung mit Game, erstem GamePlayer und ScoreCard
-- Eindeutige kurze Invite-Codes fuer neue Runden
-- Beitritt zu Runden ueber `/join/[inviteCode]`
-- Dashboard zeigt echte Runden des eingeloggten Benutzers
-- Owner kann eine Lobby mit mindestens 2 Spielern starten
-- Spielseite zeigt Rundenname, Status, Invite-Code, Einladungslink, Spielerliste, aktuellen Spieler und Score-Tabelle
-- Aktueller Spieler klickt die physisch gewuerfelten Augenzahlen ein
-- App berechnet freie Score-Kategorien automatisch und der Spieler waehlt eine Kategorie
-- Nach Eintragung wechselt der aktuelle Spieler automatisch
-- Upper Bonus, Gesamtpunktzahl und Spielende werden berechnet
-- Gewinner wird nach Spielende angezeigt
-- Keine digitale Wuerfellogik im Spielablauf
+Prisma enthaelt Modelle fuer:
 
-## Naechste sinnvolle Schritte
+- `User`
+- `Game`
+- `GamePlayer`
+- `GameInvitation`
+- `ScoreCard`
+- `Turn`
+- `FriendRequest`
+- `Friendship`
 
-1. Score-Eintraege visuell besser hervorheben und Bedienung weiter verbessern.
-2. Realtime-Updates planen, zum Beispiel spaeter per WebSocket oder Server-Sent Events.
-3. Tests fuer Auth, Runden-Workflows, ScoreCard-Regeln und Datenbank-Workflows ausbauen.
+Wichtige Status-Enums:
 
-## Punkte eintragen
+- `GameStatus`: `LOBBY`, `ACTIVE`, `FINISHED`
+- `TurnStatus`: `ACTIVE`, `FINISHED`
+- `GameInvitationStatus`: `PENDING`, `ACCEPTED`
 
-Die App wuerfelt nicht digital. Der aktuelle Spieler wuerfelt physisch und klickt danach die fuenf
-sichtbaren Augenzahlen in der App an. Sobald genau 5 Werte gewaehlt sind, berechnet die App die
-moeglichen Punkte fuer alle Kategorien. Bereits belegte Kategorien bleiben sichtbar, sind aber
-deaktiviert.
+## Spielablauf
 
-Beim Eintragen sendet der Client nur Kategorie und Augenzahlen. Die Punktzahl wird serverseitig
-erneut berechnet und gespeichert.
-
-## Runden erstellen und beitreten
-
-Eingeloggte Benutzer koennen ueber `/games/new` eine Runde erstellen. Dabei werden Game,
-GamePlayer und ScoreCard gemeinsam angelegt. Nach Erfolg fuehrt die App direkt zur Spielseite.
-
-Jede Runde erhaelt einen eindeutigen Invite-Code. Der Code und der Einladungslink werden auf der
-Spielseite angezeigt.
-
-Andere eingeloggte Benutzer koennen ueber `/join/[inviteCode]` beitreten. Doppelte Beitritte werden
-verhindert; bestehende Spieler werden direkt zur Runde weitergeleitet.
+1. Benutzer erstellt eine Runde.
+2. Andere Spieler treten per Invite-Code bei oder werden als Freunde eingeladen.
+3. Owner startet die Lobby ab 2 Spielern.
+4. Der aktuelle Spieler wuerfelt physisch.
+5. Er traegt die fuenf Augenzahlen in der App ein.
+6. Die App berechnet moegliche Punkte und empfiehlt eine Kategorie.
+7. Beim Speichern berechnet der Server die Punkte erneut.
+8. Der naechste Spieler ist automatisch am Zug.
+9. Wenn alle ScoreCards voll sind, wird die Runde beendet und ein Gewinner angezeigt.
 
 ## Qualitaetschecks
 
 ```bash
+npm test
 npm run lint
 npm run build
 ```
 
-Diese Befehle setzen voraus, dass `npm install` bereits ausgefuehrt wurde.
+Die Tests liegen aktuell unter `src/game/*.test.ts` und laufen ueber `node:test` mit `tsx`.
+
+## Naechste sinnvolle Schritte
+
+1. Realtime-Updates fuer Lobby, Spielstand und Social-Status sauber planen.
+2. Datenbank- und Server-Action-Tests fuer Auth, Invites und Runden-Workflows ausbauen.

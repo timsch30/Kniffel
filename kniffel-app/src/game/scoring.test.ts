@@ -86,12 +86,54 @@ describe("scoring helpers", () => {
     strictEqual(calculateCategoryPriority("chance"), -2);
   });
 
-  it("puts strike suggestions before chance on bad rolls", () => {
+  it("prefers four of a kind over upper points only when the upper bonus is on track", () => {
+    const diceValues = [6, 6, 6, 6, 5];
+
+    strictEqual(getRecommendedCategory({}, diceValues), "sixes");
+    strictEqual(
+      getRecommendedCategory({ fives: 15, fours: 12, ones: 3, threes: 9, twos: 6 }, diceValues),
+      "fourOfAKind"
+    );
+    strictEqual(
+      getRecommendedCategory({ fives: 5, fours: 4, ones: 1, threes: 3, twos: 2 }, diceValues),
+      "sixes"
+    );
+  });
+
+  it("protects rare categories on bad rolls", () => {
     const recommendations = getAvailableScoreSuggestions({}, [1, 1, 2, 3, 5])
       .filter((suggestion) => !suggestion.used)
       .sort((left, right) => right.priority - left.priority);
 
-    strictEqual(recommendations[0]?.category, "largeStraight");
-    strictEqual(recommendations[0]?.action, "strike");
+    strictEqual(recommendations[0]?.category, "ones");
+    strictEqual(recommendations[0]?.action, "score");
+  });
+
+  it("keeps chance as an emergency category until the late game", () => {
+    const diceValues = [1, 2, 3, 5, 6];
+
+    strictEqual(
+      getRecommendedCategory({ fours: 12, ones: 3, threes: 9, twos: 6 }, diceValues),
+      "threeOfAKind"
+    );
+    strictEqual(
+      getRecommendedCategory(
+        {
+          fives: 15,
+          fourOfAKind: 0,
+          fours: 12,
+          fullHouse: 0,
+          largeStraight: 0,
+          ones: 3,
+          sixes: 18,
+          smallStraight: 0,
+          threeOfAKind: 0,
+          threes: 9,
+          twos: 6
+        },
+        diceValues
+      ),
+      "chance"
+    );
   });
 });
