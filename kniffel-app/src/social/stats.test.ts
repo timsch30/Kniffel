@@ -365,7 +365,7 @@ describe("achievement stats", () => {
     strictEqual(stats.kniffel.friend, 1);
   });
 
-  it("sorts leaderboard by wins before averages and kniffel", () => {
+  it("sorts leaderboard by wins before averages and highscore by default", () => {
     const players: Player[] = [
       { color: "", id: "user-1", initials: "U1", name: "User 1" },
       { color: "", id: "user-2", initials: "U2", name: "User 2" },
@@ -407,9 +407,104 @@ describe("achievement stats", () => {
     const leaderboard = calculateLeaderboard(players, games);
 
     strictEqual(leaderboard[0].player.id, "user-2");
+    strictEqual(leaderboard[0].rank, 1);
     strictEqual(leaderboard[0].wins, 2);
+    strictEqual(leaderboard[0].highestScore, 260);
     strictEqual(leaderboard[1].player.id, "user-1");
+    strictEqual(leaderboard[1].rank, 2);
     strictEqual(leaderboard[1].wins, 1);
     strictEqual(leaderboard[2].player.id, "user-3");
+    strictEqual(leaderboard[2].rank, 3);
+  });
+
+  it("sorts leaderboard by average points when requested", () => {
+    const players: Player[] = [
+      { color: "", id: "user-1", initials: "U1", name: "User 1" },
+      { color: "", id: "user-2", initials: "U2", name: "User 2" },
+      { color: "", id: "user-3", initials: "U3", name: "User 3" }
+    ];
+    const games: Game[] = [
+      {
+        date: "2026-05-20T12:00:00.000Z",
+        highlights: [],
+        id: "game-1",
+        results: [
+          { categoryScores: {}, kniffelCount: 0, playerId: "user-1", score: 300 },
+          { categoryScores: {}, kniffelCount: 1, playerId: "user-2", score: 240 }
+        ],
+        winnerId: "user-1"
+      },
+      {
+        date: "2026-05-19T12:00:00.000Z",
+        highlights: [],
+        id: "game-2",
+        results: [
+          { categoryScores: {}, kniffelCount: 2, playerId: "user-2", score: 260 },
+          { categoryScores: {}, kniffelCount: 0, playerId: "user-3", score: 220 }
+        ],
+        winnerId: "user-2"
+      },
+      {
+        date: "2026-05-18T12:00:00.000Z",
+        highlights: [],
+        id: "game-3",
+        results: [
+          { categoryScores: {}, kniffelCount: 0, playerId: "user-2", score: 230 },
+          { categoryScores: {}, kniffelCount: 0, playerId: "user-3", score: 210 }
+        ],
+        winnerId: "user-2"
+      }
+    ];
+
+    const leaderboard = calculateLeaderboard(players, games, "average");
+
+    strictEqual(leaderboard[0].player.id, "user-1");
+    strictEqual(leaderboard[0].rank, 1);
+    strictEqual(leaderboard[0].averagePoints, 300);
+    strictEqual(leaderboard[1].player.id, "user-2");
+    strictEqual(leaderboard[1].rank, 2);
+    strictEqual(leaderboard[2].player.id, "user-3");
+    strictEqual(leaderboard[2].rank, 3);
+  });
+
+  it("sorts leaderboard by highest score when requested", () => {
+    const players: Player[] = [
+      { color: "", id: "user-1", initials: "U1", name: "User 1" },
+      { color: "", id: "user-2", initials: "U2", name: "User 2" },
+      { color: "", id: "user-3", initials: "U3", name: "User 3" }
+    ];
+    const games: Game[] = [
+      {
+        date: "2026-05-20T12:00:00.000Z",
+        highlights: [],
+        id: "game-1",
+        results: [
+          { categoryScores: {}, kniffelCount: 0, playerId: "user-1", score: 280 },
+          { categoryScores: {}, kniffelCount: 1, playerId: "user-2", score: 260 }
+        ],
+        winnerId: "user-1"
+      },
+      {
+        date: "2026-05-19T12:00:00.000Z",
+        highlights: [],
+        id: "game-2",
+        results: [
+          { categoryScores: {}, kniffelCount: 2, playerId: "user-2", score: 350 },
+          { categoryScores: {}, kniffelCount: 0, playerId: "user-3", score: 340 }
+        ],
+        winnerId: "user-2"
+      }
+    ];
+
+    const leaderboard = calculateLeaderboard(players, games, "highscore");
+
+    strictEqual(leaderboard[0].player.id, "user-2");
+    strictEqual(leaderboard[0].rank, 1);
+    strictEqual(leaderboard[0].highestScore, 350);
+    strictEqual(leaderboard[1].player.id, "user-3");
+    strictEqual(leaderboard[1].rank, 2);
+    strictEqual(leaderboard[1].highestScore, 340);
+    strictEqual(leaderboard[2].player.id, "user-1");
+    strictEqual(leaderboard[2].rank, 3);
   });
 });

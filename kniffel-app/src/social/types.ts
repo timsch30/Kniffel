@@ -135,8 +135,11 @@ export type Achievement = {
 
 export type LeaderboardEntry = {
   averagePoints: number;
+  highestScore: number;
   player: Player;
   rank: number;
   totalKniffel: number;
   wins: number;
 };
+
+export type LeaderboardSortMode = "wins" | "average" | "highscore";

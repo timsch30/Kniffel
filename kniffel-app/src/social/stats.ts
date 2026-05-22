@@ -5,6 +5,7 @@ import type {
   GameHighlight,
   HeadToHeadStats,
   LeaderboardEntry,
+  LeaderboardSortMode,
   Player,
   PlayerId,
   PlayerStats,
@@ -164,13 +165,18 @@ export function calculatePlayerStats(games: Game[], playerId: PlayerId): PlayerS
   };
 }
 
-export function calculateLeaderboard(players: Player[], games: Game[]): LeaderboardEntry[] {
+export function calculateLeaderboard(
+  players: Player[],
+  games: Game[],
+  sortMode: LeaderboardSortMode = "wins"
+): LeaderboardEntry[] {
   return players
     .map((player) => {
       const stats = calculatePlayerStats(games, player.id);
 
       return {
         averagePoints: stats.averagePoints,
+        highestScore: stats.highestScore,
         player,
         rank: 0,
         totalKniffel: stats.totalKniffel,
@@ -178,12 +184,24 @@ export function calculateLeaderboard(players: Player[], games: Game[]): Leaderbo
       };
     })
     .sort((a, b) => {
+      if (sortMode === "average" && b.averagePoints !== a.averagePoints) {
+        return b.averagePoints - a.averagePoints;
+      }
+
+      if (sortMode === "highscore" && b.highestScore !== a.highestScore) {
+        return b.highestScore - a.highestScore;
+      }
+
       if (b.wins !== a.wins) {
         return b.wins - a.wins;
       }
 
       if (b.averagePoints !== a.averagePoints) {
         return b.averagePoints - a.averagePoints;
+      }
+
+      if (b.highestScore !== a.highestScore) {
+        return b.highestScore - a.highestScore;
       }
 
       return b.totalKniffel - a.totalKniffel;
