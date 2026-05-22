@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 
+import { useVisiblePolling } from "@/components/hooks/useVisiblePolling";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
 
-const ACHIEVEMENT_POLL_INTERVAL_MS = 15_000;
+const ACHIEVEMENT_POLL_INTERVAL_MS = 60_000;
 const ACHIEVEMENT_TOAST_DURATION_MS = 4_600;
 const STORAGE_VERSION = "v1";
 
@@ -62,10 +63,6 @@ export function AchievementNotifications({ userId }: { userId: string }) {
   const storageKey = useMemo(() => getStorageKey(userId), [userId]);
 
   const refreshAchievements = useCallback(async () => {
-    if (document.visibilityState !== "visible") {
-      return;
-    }
-
     try {
       const response = await fetch("/api/social/achievements", {
         cache: "no-store"
@@ -111,26 +108,15 @@ export function AchievementNotifications({ userId }: { userId: string }) {
     }
   }, [notify, storageKey, userId]);
 
+  useVisiblePolling(refreshAchievements, {
+    intervalMs: ACHIEVEMENT_POLL_INTERVAL_MS
+  });
+
   useEffect(() => {
-    void refreshAchievements();
-
-    const intervalId = window.setInterval(() => {
-      void refreshAchievements();
-    }, ACHIEVEMENT_POLL_INTERVAL_MS);
-
-    function refreshWhenVisible() {
-      if (document.visibilityState === "visible") {
-        void refreshAchievements();
-      }
-    }
-
-    window.addEventListener("focus", refreshAchievements);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("kniffel:score-saved", refreshAchievements);
 
     return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshAchievements);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("kniffel:score-saved", refreshAchievements);
     };
   }, [refreshAchievements]);
 

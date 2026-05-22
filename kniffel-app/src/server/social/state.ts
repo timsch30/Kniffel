@@ -3,8 +3,10 @@ import { requireCurrentUser } from "@/server/auth/session";
 import {
   calculateUpperBonus,
   calculateTotalScore,
+  normalizeStruckCategories,
   scoreCategories,
-  scoreCategoryLabels
+  scoreCategoryLabels,
+  upperScoreCategories
 } from "@/game/scorecard";
 import { expireInactiveActiveGames } from "@/server/game/expiration";
 import type { Friend, Game, GameHighlight, PlayerGameResult } from "@/social/types";
@@ -65,7 +67,34 @@ function toFriend(user: {
   };
 }
 
-function getKniffelCount(scoreCard: { kniffel: number | null }): number {
+function normalizeDiceValues(value: unknown): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isInteger(entry) && entry >= 1 && entry <= 6);
+}
+
+function isKniffelRoll(value: unknown): boolean {
+  const diceValues = normalizeDiceValues(value);
+
+  return diceValues.length === 5 && diceValues.every((entry) => entry === diceValues[0]);
+}
+
+function getKniffelCount(
+  scoreCard: { kniffel: number | null; playerId: string },
+  turns: Array<{ diceValues: unknown; playerId: string | null }>
+): number {
+  const rolledKniffel = turns.filter(
+    (turn) => turn.playerId === scoreCard.playerId && isKniffelRoll(turn.diceValues)
+  ).length;
+
+  if (rolledKniffel > 0) {
+    return rolledKniffel;
+  }
+
   return scoreCard.kniffel && scoreCard.kniffel > 0 ? 1 : 0;
 }
 
@@ -88,6 +117,12 @@ function getCategoryScores(
   );
 }
 
+function getUpperScore(
+  scoreCard: Partial<Record<(typeof scoreCategories)[number], number | null>>
+): number {
+  return upperScoreCategories.reduce((sum, category) => sum + (scoreCard[category] ?? 0), 0);
+}
+
 function getHighlights(results: PlayerGameResult[]): GameHighlight[] {
   const sortedScores = results.map((result) => result.score).sort((a, b) => b - a);
   const highlights: GameHighlight[] = [];
@@ -103,7 +138,7 @@ function getHighlights(results: PlayerGameResult[]): GameHighlight[] {
   return highlights;
 }
 
-async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
+async function getSocialGames(userIds: string[]): Promise<Game[]> {
   if (userIds.length === 0) {
     return [];
   }
@@ -120,7 +155,13 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
           userId: true
         }
       },
-      scoreCards: true
+      scoreCards: true,
+      turns: {
+        select: {
+          diceValues: true,
+          playerId: true
+        }
+      }
     },
     orderBy: {
       updatedAt: "desc"
@@ -133,15 +174,14 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
           }
         }
       },
-      status: "FINISHED"
+      status: {
+        in: ["ACTIVE", "FINISHED"]
+      }
     }
   });
 
   return games.flatMap((game) => {
-    if (!game.scoreCards.every(isCompleteScoreCard)) {
-      return [];
-    }
-
+    const completed = game.status === "FINISHED" && game.scoreCards.every(isCompleteScoreCard);
     const results = game.scoreCards.flatMap((scoreCard) => {
       const player = game.players.find((entry) => entry.id === scoreCard.playerId);
 
@@ -149,13 +189,30 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
         return [];
       }
 
+      const kniffelCount = getKniffelCount(scoreCard, game.turns);
+
+      if (!completed) {
+        return kniffelCount > 0
+          ? [
+              {
+                categoryScores: {},
+                kniffelCount,
+                playerId: player.userId,
+                score: 0
+              }
+            ]
+          : [];
+      }
+
       return [
         {
           categoryScores: getCategoryScores(scoreCard),
-          kniffelCount: getKniffelCount(scoreCard),
+          kniffelCount,
           playerId: player.userId,
           score: scoreCard.total ?? calculateTotalScore(scoreCard),
-          upperBonus: scoreCard.upperBonus ?? calculateUpperBonus(scoreCard)
+          struckCategoryCount: normalizeStruckCategories(scoreCard.struckCategories).length,
+          upperBonus: scoreCard.upperBonus ?? calculateUpperBonus(scoreCard),
+          upperScore: getUpperScore(scoreCard)
         }
       ];
     });
@@ -168,6 +225,7 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
 
     return [
       {
+        completed,
         date: game.updatedAt.toISOString(),
         highlights: getHighlights(results),
         id: game.id,
@@ -279,7 +337,7 @@ export async function getSocialState(): Promise<SocialState> {
 
       return new Date(right.lastActiveAt).getTime() - new Date(left.lastActiveAt).getTime();
     });
-  const games = await getFinishedSocialGames([user.id, ...friends.map((friend) => friend.id)]);
+  const games = await getSocialGames([user.id, ...friends.map((friend) => friend.id)]);
 
   return {
     friends,

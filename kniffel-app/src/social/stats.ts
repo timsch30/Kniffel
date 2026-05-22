@@ -5,12 +5,14 @@ import type {
   GameHighlight,
   HeadToHeadStats,
   LeaderboardEntry,
+  LeaderboardSortMode,
   Player,
   PlayerId,
   PlayerStats,
   RivalStats
 } from "@/social/types";
 import { achievementDefinitions } from "@/social/achievements";
+import { scoreCategories, scoreCategoryLabels, upperScoreCategories } from "@/game/scorecard";
 
 function round(value: number, digits = 0): number {
   const factor = 10 ** digits;
@@ -26,10 +28,14 @@ function getGamesForPlayer(games: Game[], playerId: PlayerId): Game[] {
   return games.filter((game) => getPlayerResult(game, playerId));
 }
 
+function isCompletedGame(game: Game): boolean {
+  return game.completed !== false;
+}
+
 function calculateWinStreaks(games: Game[], playerId: PlayerId) {
-  const newestFirst = [...getGamesForPlayer(games, playerId)].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  const newestFirst = [...getGamesForPlayer(games, playerId)]
+    .filter(isCompletedGame)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   let current = 0;
   let longest = 0;
@@ -80,18 +86,53 @@ function calculateCategoryStats(games: Game[], playerId: PlayerId) {
   return { bestCategory, favoriteCategory };
 }
 
+const upperScoreLabels = upperScoreCategories.map((category) => scoreCategoryLabels[category]);
+
+function getUpperScoreFromResult(result: {
+  categoryScores: Record<string, number>;
+  upperScore?: number;
+}): number {
+  if (typeof result.upperScore === "number") {
+    return result.upperScore;
+  }
+
+  return upperScoreLabels.reduce((sum, label) => sum + (result.categoryScores[label] ?? 0), 0);
+}
+
+function hasAllCategoriesStruck(result: {
+  categoryScores: Record<string, number>;
+  struckCategoryCount?: number;
+}): boolean {
+  if ((result.struckCategoryCount ?? 0) >= scoreCategories.length) {
+    return true;
+  }
+
+  return scoreCategories.every((category) => {
+    const label = scoreCategoryLabels[category];
+
+    return Object.prototype.hasOwnProperty.call(result.categoryScores, label) &&
+      result.categoryScores[label] === 0;
+  });
+}
+
 export function calculatePlayerStats(games: Game[], playerId: PlayerId): PlayerStats {
   const playerGames = getGamesForPlayer(games, playerId);
-  const results = playerGames.flatMap((game) => {
+  const completedPlayerGames = playerGames.filter(isCompletedGame);
+  const results = completedPlayerGames.flatMap((game) => {
     const result = getPlayerResult(game, playerId);
 
     return result ? [result] : [];
   });
-  const gamesPlayed = playerGames.length;
-  const gamesWon = playerGames.filter((game) => game.winnerId === playerId).length;
+  const allResults = playerGames.flatMap((game) => {
+    const result = getPlayerResult(game, playerId);
+
+    return result ? [result] : [];
+  });
+  const gamesPlayed = completedPlayerGames.length;
+  const gamesWon = completedPlayerGames.filter((game) => game.winnerId === playerId).length;
   const totalPoints = results.reduce((sum, result) => sum + result.score, 0);
-  const totalKniffel = results.reduce((sum, result) => sum + result.kniffelCount, 0);
-  const bestGameKniffel = Math.max(0, ...results.map((result) => result.kniffelCount));
+  const totalKniffel = allResults.reduce((sum, result) => sum + result.kniffelCount, 0);
+  const bestGameKniffel = Math.max(0, ...allResults.map((result) => result.kniffelCount));
   const fullHouseCount = results.filter(
     (result) => (result.categoryScores["Full House"] ?? 0) > 0
   ).length;
@@ -108,8 +149,13 @@ export function calculatePlayerStats(games: Game[], playerId: PlayerId): PlayerS
     bestCategory,
     bestGameKniffel,
     currentWinStreak: current,
-    doubleKniffelGames: results.filter((result) => result.kniffelCount >= 2).length,
+    doubleKniffelGames: allResults.filter((result) => result.kniffelCount >= 2).length,
+    exactScore111Games: results.filter((result) => result.score === 111).length,
+    exactScore222Games: results.filter((result) => result.score === 222).length,
+    exactScore333Games: results.filter((result) => result.score === 333).length,
     exactScore375Games: results.filter((result) => result.score === 375).length,
+    exactUpper67Games: results.filter((result) => getUpperScoreFromResult(result) === 67).length,
+    exactUpper69Games: results.filter((result) => getUpperScoreFromResult(result) === 69).length,
     favoriteCategory,
     fullHouseCount,
     gamesPlayed,
@@ -117,22 +163,30 @@ export function calculatePlayerStats(games: Game[], playerId: PlayerId): PlayerS
     highestScore: Math.max(0, ...results.map((result) => result.score)),
     kniffelPerGame: gamesPlayed > 0 ? round(totalKniffel / gamesPlayed, 2) : 0,
     longestWinStreak: longest,
+    lowScoreUnder150Games: results.filter((result) => result.score < 150).length,
     perfectUpperBonusGames: results.filter((result) => (result.upperBonus ?? 0) >= 35).length,
+    score330Games: results.filter((result) => result.score >= 330).length,
     straightBuilderGames,
-    tripleKniffelGames: results.filter((result) => result.kniffelCount >= 3).length,
+    allCategoriesStruckGames: results.filter(hasAllCategoriesStruck).length,
+    tripleKniffelGames: allResults.filter((result) => result.kniffelCount >= 3).length,
     totalKniffel,
     totalPoints,
     winRate: gamesPlayed > 0 ? round((gamesWon / gamesPlayed) * 100) : 0
   };
 }
 
-export function calculateLeaderboard(players: Player[], games: Game[]): LeaderboardEntry[] {
+export function calculateLeaderboard(
+  players: Player[],
+  games: Game[],
+  sortMode: LeaderboardSortMode = "wins"
+): LeaderboardEntry[] {
   return players
     .map((player) => {
       const stats = calculatePlayerStats(games, player.id);
 
       return {
         averagePoints: stats.averagePoints,
+        highestScore: stats.highestScore,
         player,
         rank: 0,
         totalKniffel: stats.totalKniffel,
@@ -140,12 +194,24 @@ export function calculateLeaderboard(players: Player[], games: Game[]): Leaderbo
       };
     })
     .sort((a, b) => {
+      if (sortMode === "average" && b.averagePoints !== a.averagePoints) {
+        return b.averagePoints - a.averagePoints;
+      }
+
+      if (sortMode === "highscore" && b.highestScore !== a.highestScore) {
+        return b.highestScore - a.highestScore;
+      }
+
       if (b.wins !== a.wins) {
         return b.wins - a.wins;
       }
 
       if (b.averagePoints !== a.averagePoints) {
         return b.averagePoints - a.averagePoints;
+      }
+
+      if (b.highestScore !== a.highestScore) {
+        return b.highestScore - a.highestScore;
       }
 
       return b.totalKniffel - a.totalKniffel;
@@ -158,7 +224,9 @@ function getHeadToHeadGames(games: Game[], userId: PlayerId, friendId: PlayerId)
 }
 
 function calculateRecentWinRun(games: Game[], playerId: PlayerId): number {
-  const newestFirst = [...games].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const newestFirst = [...games]
+    .filter(isCompletedGame)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   let streak = 0;
 
   for (const game of newestFirst) {
@@ -178,19 +246,30 @@ export function calculateHeadToHeadStats(
   friend: Player
 ): HeadToHeadStats {
   const directGames = getHeadToHeadGames(games, user.id, friend.id);
-  const userResults = directGames.flatMap((game) => {
+  const completedDirectGames = directGames.filter(isCompletedGame);
+  const userResults = completedDirectGames.flatMap((game) => {
     const result = getPlayerResult(game, user.id);
 
     return result ? [result] : [];
   });
-  const friendResults = directGames.flatMap((game) => {
+  const friendResults = completedDirectGames.flatMap((game) => {
     const result = getPlayerResult(game, friend.id);
 
     return result ? [result] : [];
   });
-  const userWins = directGames.filter((game) => game.winnerId === user.id).length;
-  const friendWins = directGames.filter((game) => game.winnerId === friend.id).length;
-  const lastGame = [...directGames].sort(
+  const userKniffelResults = directGames.flatMap((game) => {
+    const result = getPlayerResult(game, user.id);
+
+    return result ? [result] : [];
+  });
+  const friendKniffelResults = directGames.flatMap((game) => {
+    const result = getPlayerResult(game, friend.id);
+
+    return result ? [result] : [];
+  });
+  const userWins = completedDirectGames.filter((game) => game.winnerId === user.id).length;
+  const friendWins = completedDirectGames.filter((game) => game.winnerId === friend.id).length;
+  const lastGame = [...completedDirectGames].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   )[0];
   const userWinRun = calculateRecentWinRun(directGames, user.id);
@@ -222,15 +301,15 @@ export function calculateHeadToHeadStats(
         ? round(userResults.reduce((sum, result) => sum + result.score, 0) / userResults.length, 1)
         : 0
     },
-    directMatches: directGames.length,
+    directMatches: completedDirectGames.length,
     highestScore: {
       friend: Math.max(0, ...friendResults.map((result) => result.score)),
       user: Math.max(0, ...userResults.map((result) => result.score))
     },
     insight,
     kniffel: {
-      friend: friendResults.reduce((sum, result) => sum + result.kniffelCount, 0),
-      user: userResults.reduce((sum, result) => sum + result.kniffelCount, 0)
+      friend: friendKniffelResults.reduce((sum, result) => sum + result.kniffelCount, 0),
+      user: userKniffelResults.reduce((sum, result) => sum + result.kniffelCount, 0)
     },
     lastWinner:
       lastGame?.winnerId === user.id ? user : lastGame?.winnerId === friend.id ? friend : undefined,
@@ -278,6 +357,7 @@ export function calculateAchievements(stats: PlayerStats): Achievement[] {
 
 export function getRecentGames(games: Game[], limit = 5): Game[] {
   return [...games]
+    .filter(isCompletedGame)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, limit);
 }

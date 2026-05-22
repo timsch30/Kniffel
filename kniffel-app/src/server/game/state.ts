@@ -1,5 +1,5 @@
-import { normalizeStruckCategories, scoreCategories } from "@/game/scorecard";
-import type { GameInviteFriend, GameState } from "@/game/state";
+import { isScoreCategory, normalizeStruckCategories, scoreCategories } from "@/game/scorecard";
+import type { GameInviteFriend, GameState, GameStateEntryMode, GameStateLastEntry } from "@/game/state";
 import { prisma } from "@/lib/prisma";
 import { expireInactiveActiveGame, isActiveGameExpired } from "@/server/game/expiration";
 
@@ -11,6 +11,18 @@ function normalizeDiceValues(value: unknown): number[] {
   return value
     .map((entry) => Number(entry))
     .filter((entry) => Number.isInteger(entry) && entry >= 1 && entry <= 6);
+}
+
+function normalizeHeldDice(value: unknown): boolean[] {
+  if (!Array.isArray(value)) {
+    return [false, false, false, false, false];
+  }
+
+  return Array.from({ length: 5 }, (_, index) => value[index] === true);
+}
+
+function normalizeEntryMode(value: string | null): GameStateEntryMode {
+  return value === "manual" || value === "online" || value === "real" ? value : "real";
 }
 
 function isCompleteScoreCard(
@@ -137,18 +149,27 @@ export async function getGameState(
       },
       turns: {
         orderBy: {
-          createdAt: "desc"
+          updatedAt: "desc"
         },
         select: {
           createdAt: true,
           diceValues: true,
+          entryCategory: true,
+          entryMode: true,
+          entryPoints: true,
+          heldDice: true,
+          id: true,
+          playerId: true,
+          rollCount: true,
           player: {
             select: {
               displayName: true
             }
-          }
+          },
+          status: true,
+          updatedAt: true
         },
-        take: 1
+        take: 80
       }
     },
     where: {
@@ -166,6 +187,7 @@ export async function getGameState(
     await expireInactiveActiveGame(game.id);
   }
 
+  const stateUpdatedAt = expired ? new Date() : game.updatedAt;
   const scoreCards = game.scoreCards.map((scoreCard) => {
     const normalizedScoreCard = Object.fromEntries(
       scoreCategories.map((category) => [category, scoreCard[category] ?? null])
@@ -209,6 +231,53 @@ export async function getGameState(
         }
       : null;
   const lastTurn = game.turns[0] ?? null;
+  const activeTurnSource = game.turns.find(
+    (turn) => turn.status === "ACTIVE" && turn.playerId === currentPlayerId
+  );
+  const activeTurn =
+    status === "ACTIVE" && activeTurnSource?.playerId
+      ? {
+          diceValues: normalizeDiceValues(activeTurnSource.diceValues),
+          heldDice: normalizeHeldDice(activeTurnSource.heldDice),
+          id: activeTurnSource.id,
+          playerId: activeTurnSource.playerId,
+          rollCount: activeTurnSource.rollCount,
+          updatedAt: activeTurnSource.updatedAt.toISOString()
+        }
+      : null;
+  const finishedEntries = game.turns.flatMap((turn): GameStateLastEntry[] => {
+    if (
+      turn.status !== "FINISHED" ||
+      !turn.playerId ||
+      !turn.entryCategory ||
+      !isScoreCategory(turn.entryCategory) ||
+      typeof turn.entryPoints !== "number"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        category: turn.entryCategory,
+        createdAt: turn.updatedAt.toISOString(),
+        diceValues: normalizeDiceValues(turn.diceValues),
+        displayName: turn.player?.displayName ?? "Unbekannter Spieler",
+        entryMode: normalizeEntryMode(turn.entryMode),
+        id: turn.id,
+        playerId: turn.playerId,
+        points: turn.entryPoints
+      }
+    ];
+  });
+  const latestEntry = finishedEntries[0] ?? null;
+  const entriesByPlayerId = new Map<string, GameStateLastEntry>();
+
+  finishedEntries.forEach((entry) => {
+    if (!entriesByPlayerId.has(entry.playerId)) {
+      entriesByPlayerId.set(entry.playerId, entry);
+    }
+  });
+
   const lastAction = lastTurn
     ? {
         createdAt: lastTurn.createdAt.toISOString(),
@@ -223,12 +292,15 @@ export async function getGameState(
       : [];
 
   return {
+    activeTurn,
     currentPlayerId,
     currentPlayerName: currentPlayer?.displayName ?? null,
     friendInvites,
     gameId: game.id,
     inviteCode: game.inviteCode,
     lastAction,
+    lastEntries: [...entriesByPlayerId.values()],
+    latestEntry,
     name: game.name,
     ownerId: game.ownerId,
     players: game.players,
@@ -236,6 +308,7 @@ export async function getGameState(
     roundNumber: game.roundNumber,
     scoreCards,
     status,
+    updatedAt: stateUpdatedAt.toISOString(),
     winner
   };
 }

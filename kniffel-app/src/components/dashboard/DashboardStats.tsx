@@ -8,17 +8,6 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 
-const FRIEND_PRESENCE_INTERVAL_MS = 10_000;
-
-type PresenceFriendsResponse = {
-  friends: {
-    id: string;
-    inGame: boolean;
-    lastSeenAt: string;
-    username: string;
-  }[];
-};
-
 type FriendsPresenceEvent = CustomEvent<{
   onlineCount: number;
 }>;
@@ -37,52 +26,13 @@ export function DashboardStats({
   const [liveFriendsOnline, setLiveFriendsOnline] = useState(friendsOnline);
 
   useEffect(() => {
-    let active = true;
-
-    async function refreshFriendsOnline() {
-      if (!active || document.visibilityState !== "visible") {
-        return;
-      }
-
-      try {
-        const response = await fetch("/api/presence/friends", {
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const data = (await response.json()) as PresenceFriendsResponse;
-        setLiveFriendsOnline(data.friends.length);
-      } catch {
-        // Dashboard presence is best-effort.
-      }
-    }
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        void refreshFriendsOnline();
-      }
-    }
-
     function handleFriendsPresence(event: Event) {
       setLiveFriendsOnline((event as FriendsPresenceEvent).detail.onlineCount);
     }
 
-    void refreshFriendsOnline();
-
-    const intervalId = window.setInterval(() => {
-      void refreshFriendsOnline();
-    }, FRIEND_PRESENCE_INTERVAL_MS);
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("kniffel:friends-presence", handleFriendsPresence);
 
     return () => {
-      active = false;
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("kniffel:friends-presence", handleFriendsPresence);
     };
   }, []);

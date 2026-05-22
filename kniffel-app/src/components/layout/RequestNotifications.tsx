@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 
 import { Check, X } from "lucide-react";
 
+import { useVisiblePolling } from "@/components/hooks/useVisiblePolling";
 import { Button } from "@/components/ui/Button";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
 
-const REQUEST_POLL_INTERVAL_MS = 4_000;
+const REQUEST_POLL_INTERVAL_MS = 12_000;
 const REQUEST_TOAST_DURATION_MS = 8_000;
 
 type DashboardRequestsResponse = {
@@ -31,6 +32,14 @@ type RequestNotificationsProps = {
   declineGameInvitationAction: (invitationId: string) => void | Promise<void>;
 };
 
+function dispatchDashboardRequests(requests: DashboardRequestsResponse) {
+  window.dispatchEvent(
+    new CustomEvent("kniffel:dashboard-requests", {
+      detail: requests
+    })
+  );
+}
+
 export function RequestNotifications({
   acceptFriendRequestAction,
   acceptGameInvitationAction,
@@ -46,10 +55,6 @@ export function RequestNotifications({
   }, [dismissNotification]);
 
   const refreshRequests = useCallback(async () => {
-    if (document.visibilityState !== "visible") {
-      return;
-    }
-
     try {
       const response = await fetch("/api/dashboard/requests", {
         cache: "no-store"
@@ -60,6 +65,8 @@ export function RequestNotifications({
       }
 
       const data = (await response.json()) as DashboardRequestsResponse;
+      dispatchDashboardRequests(data);
+
       const nextFriendRequestIds = new Set(data.friendRequests.map((request) => request.id));
       const nextGameInvitationIds = new Set(data.gameInvitations.map((invitation) => invitation.id));
       const knownFriendRequestIds = knownFriendRequestIdsRef.current;
@@ -174,28 +181,9 @@ export function RequestNotifications({
     notify
   ]);
 
-  useEffect(() => {
-    void refreshRequests();
-
-    const intervalId = window.setInterval(() => {
-      void refreshRequests();
-    }, REQUEST_POLL_INTERVAL_MS);
-
-    function refreshWhenVisible() {
-      if (document.visibilityState === "visible") {
-        void refreshRequests();
-      }
-    }
-
-    window.addEventListener("focus", refreshRequests);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshRequests);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
-  }, [refreshRequests]);
+  useVisiblePolling(refreshRequests, {
+    intervalMs: REQUEST_POLL_INTERVAL_MS
+  });
 
   return null;
 }

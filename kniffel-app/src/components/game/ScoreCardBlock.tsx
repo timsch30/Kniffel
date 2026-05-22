@@ -11,8 +11,10 @@ import type { ScoreCard, ScoreCategory } from "@/game/types";
 import { cn } from "@/lib/cn";
 
 type ScoreCardBlockProps = {
+  animateEntryCategory?: ScoreCategory | null;
   className?: string;
   compact?: boolean;
+  lastEntryCategory?: ScoreCategory | null;
   onSelectCategory?: (category: ScoreCategory) => void;
   scoreCard: ScoreCard | null | undefined;
   scoreSuggestions?: ScoreSuggestion[];
@@ -32,7 +34,9 @@ const upperCategoryDivisors: Partial<Record<ScoreCategory, number>> = {
 
 function CategoryRow({
   category,
+  animateEntryCategory,
   compact = false,
+  lastEntryCategory,
   onSelectCategory,
   recommendedCategory,
   scoreCard,
@@ -40,7 +44,9 @@ function CategoryRow({
   suggestion
 }: {
   category: ScoreCategory;
+  animateEntryCategory?: ScoreCategory | null;
   compact?: boolean;
+  lastEntryCategory?: ScoreCategory | null;
   onSelectCategory?: (category: ScoreCategory) => void;
   recommendedCategory?: ScoreCategory | null;
   scoreCard: ScoreCard;
@@ -58,9 +64,25 @@ function CategoryRow({
   const selected = selectedCategory === category;
   const recommended = recommendedCategory === category;
   const suggestionIsStrike = suggestion?.action === "strike";
+  const lastEntry = lastEntryCategory === category;
+  const animateEntry = animateEntryCategory === category;
+  const entryHighlightClasses = cn(
+    lastEntry
+      ? "border-amber-300/70 shadow-[0_0_0_1px_rgba(244,185,66,0.22)] dark:border-amber-300/70"
+      : "",
+    animateEntry
+      ? "scale-[1.035] ring-4 ring-amber-300/25 shadow-[0_16px_42px_rgba(244,185,66,0.18)]"
+      : ""
+  );
   const content = (
     <>
-      <span className="flex min-w-0 items-center gap-2">
+      {animateEntry ? (
+        <span
+          aria-hidden="true"
+          className="entry-row-sweep pointer-events-none absolute inset-y-0 left-0 z-0 w-1/2 bg-gradient-to-r from-transparent via-amber-100/35 to-transparent"
+        />
+      ) : null}
+      <span className="relative z-10 flex min-w-0 items-center gap-2">
         {struck ? (
           <Ban aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-300" />
         ) : open ? (
@@ -82,8 +104,13 @@ function CategoryRow({
             Gestrichen
           </span>
         ) : null}
+        {lastEntry ? (
+          <span className="shrink-0 rounded-full border border-amber-300/45 bg-amber-100 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-300/10 dark:text-amber-100">
+            Letzter
+          </span>
+        ) : null}
       </span>
-      <span className="flex shrink-0 items-center gap-1.5">
+      <span className="relative z-10 flex shrink-0 items-center gap-1.5">
         {open && suggestion ? (
           <span
             className={cn(
@@ -123,7 +150,7 @@ function CategoryRow({
       <button
         aria-pressed={selected}
         className={cn(
-          "flex w-full items-center justify-between gap-3 rounded-lg px-3 text-left transition-colors disabled:cursor-not-allowed",
+          "relative flex w-full origin-center items-center justify-between gap-3 overflow-hidden rounded-lg px-3 text-left transition-all duration-300 disabled:cursor-not-allowed",
           compact ? "min-h-9 py-1.5" : "min-h-11 py-2",
           selected
             ? "border border-emerald-500 bg-emerald-50 text-ink ring-4 ring-emerald-500/15 dark:border-emerald-300/70 dark:bg-emerald-300/15 dark:text-zinc-50 dark:ring-emerald-300/15"
@@ -131,9 +158,10 @@ function CategoryRow({
               ? "border border-rose-200/80 bg-rose-50/90 text-rose-900 dark:border-rose-300/15 dark:bg-rose-950/25 dark:text-rose-100"
               : open
                 ? selectable
-                  ? "border border-emerald-200/80 bg-emerald-50/70 text-ink hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-300/15 dark:bg-emerald-300/10 dark:text-zinc-50 dark:hover:border-emerald-300/35"
+                ? "border border-emerald-200/80 bg-emerald-50/70 text-ink hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-300/15 dark:bg-emerald-300/10 dark:text-zinc-50 dark:hover:border-emerald-300/35"
                   : "border border-slate-200 bg-slate-50/70 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-500"
-                : "border border-slate-200 bg-slate-100/80 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400"
+                : "border border-slate-200 bg-slate-100/80 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400",
+          entryHighlightClasses
         )}
         disabled={!selectable}
         onClick={() => {
@@ -151,13 +179,14 @@ function CategoryRow({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 rounded-lg px-3 transition-colors",
+        "relative flex origin-center items-center justify-between gap-3 overflow-hidden rounded-lg px-3 transition-all duration-300",
         compact ? "min-h-9 py-1.5" : "min-h-11 py-2",
         struck
           ? "border border-rose-200/80 bg-rose-50/90 text-rose-900 dark:border-rose-300/15 dark:bg-rose-950/25 dark:text-rose-100"
           : open
             ? "bg-emerald-50/70 text-ink dark:bg-emerald-300/10 dark:text-zinc-50"
-            : "bg-slate-100/80 text-slate-600 dark:bg-white/5 dark:text-zinc-400"
+            : "bg-slate-100/80 text-slate-600 dark:bg-white/5 dark:text-zinc-400",
+        entryHighlightClasses
       )}
     >
       {content}
@@ -166,8 +195,10 @@ function CategoryRow({
 }
 
 function Section({
+  animateEntryCategory,
   categories,
   compact,
+  lastEntryCategory,
   onSelectCategory,
   recommendedCategory,
   scoreCard,
@@ -175,8 +206,10 @@ function Section({
   suggestionsByCategory,
   title
 }: {
+  animateEntryCategory?: ScoreCategory | null;
   categories: readonly ScoreCategory[];
   compact?: boolean;
+  lastEntryCategory?: ScoreCategory | null;
   onSelectCategory?: (category: ScoreCategory) => void;
   recommendedCategory?: ScoreCategory | null;
   scoreCard: ScoreCard;
@@ -201,9 +234,11 @@ function Section({
       <div className="grid gap-1.5">
         {categories.map((category) => (
           <CategoryRow
+            animateEntryCategory={animateEntryCategory}
             category={category}
             compact={compact}
             key={category}
+            lastEntryCategory={lastEntryCategory}
             onSelectCategory={onSelectCategory}
             recommendedCategory={recommendedCategory}
             scoreCard={scoreCard}
@@ -261,8 +296,10 @@ function getLowerSectionScore(scoreCard: ScoreCard): number {
 }
 
 export function ScoreCardBlock({
+  animateEntryCategory,
   className,
   compact = false,
+  lastEntryCategory,
   onSelectCategory,
   scoreCard,
   scoreSuggestions,
@@ -318,8 +355,10 @@ export function ScoreCardBlock({
       ) : null}
 
       <Section
+        animateEntryCategory={animateEntryCategory}
         categories={upperScoreCategories}
         compact={compact}
+        lastEntryCategory={lastEntryCategory}
         onSelectCategory={onSelectCategory}
         recommendedCategory={recommendedCategory}
         scoreCard={scoreCard}
@@ -329,8 +368,10 @@ export function ScoreCardBlock({
       />
       <UpperSubtotal compact={compact} upperScore={upperScore} />
       <Section
+        animateEntryCategory={animateEntryCategory}
         categories={lowerScoreCategories}
         compact={compact}
+        lastEntryCategory={lastEntryCategory}
         onSelectCategory={onSelectCategory}
         recommendedCategory={recommendedCategory}
         scoreCard={scoreCard}

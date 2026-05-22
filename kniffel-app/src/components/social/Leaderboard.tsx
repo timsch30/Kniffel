@@ -1,14 +1,22 @@
-import { Crown, Sparkles, Trophy } from "lucide-react";
+import { Crown, Gauge, Medal, Trophy } from "lucide-react";
 
 import { PlayerAvatar } from "@/components/social/PlayerAvatar";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
-import type { LeaderboardEntry } from "@/social/types";
+import type { LeaderboardEntry, LeaderboardSortMode } from "@/social/types";
 
 type LeaderboardProps = {
   entries: LeaderboardEntry[];
+  onSortModeChange: (sortMode: LeaderboardSortMode) => void;
+  sortMode: LeaderboardSortMode;
 };
+
+const rankingTabs: { icon: typeof Trophy; id: LeaderboardSortMode; label: string }[] = [
+  { icon: Trophy, id: "wins", label: "Meiste Siege" },
+  { icon: Gauge, id: "average", label: "Hoechster Average" },
+  { icon: Medal, id: "highscore", label: "Hoechster Highscore" }
+];
 
 function podiumStyle(rank: number): string {
   if (rank === 1) {
@@ -26,15 +34,44 @@ function podiumStyle(rank: number): string {
   return "border-white/10 bg-black/15";
 }
 
-export function Leaderboard({ entries }: LeaderboardProps) {
+export function Leaderboard({ entries, onSortModeChange, sortMode }: LeaderboardProps) {
   return (
     <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-white">Ranking</h2>
-          <p className="text-sm text-emerald-50/70">Siege, Schnitt und Kniffel</p>
+          <p className="text-sm text-emerald-50/70">Siege, Schnitt und Highscore</p>
         </div>
         <Trophy aria-hidden="true" className="h-5 w-5 text-brass" />
+      </div>
+
+      <div
+        aria-label="Ranking filtern"
+        className="my-4 grid grid-cols-1 gap-1 rounded-lg border border-white/10 bg-black/15 p-1 sm:grid-cols-3"
+        role="tablist"
+      >
+        {rankingTabs.map(({ icon: Icon, id, label }) => {
+          const active = sortMode === id;
+
+          return (
+            <button
+              aria-selected={active}
+              className={cn(
+                "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition-colors",
+                active
+                  ? "bg-brass text-ink shadow-sm"
+                  : "text-emerald-50/65 hover:bg-white/10 hover:text-white"
+              )}
+              key={id}
+              onClick={() => onSortModeChange(id)}
+              role="tab"
+              type="button"
+            >
+              <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+              <span>{label}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="grid gap-2">
@@ -68,8 +105,7 @@ export function Leaderboard({ entries }: LeaderboardProps) {
                   Schnitt <strong className="text-white">{entry.averagePoints}</strong>
                 </span>
                 <span className="rounded-md bg-white/10 px-2 py-1 text-emerald-50/70">
-                  <Sparkles aria-hidden="true" className="mr-1 inline h-3 w-3" />
-                  <strong className="text-white">{entry.totalKniffel}</strong>
+                  Highscore <strong className="text-white">{entry.highestScore}</strong>
                 </span>
               </div>
             </div>

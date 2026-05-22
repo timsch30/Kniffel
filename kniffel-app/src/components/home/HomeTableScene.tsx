@@ -51,20 +51,17 @@ export function HomeTableScene() {
       );
     }
 
-    let nextSide: RollingSide = "bottom";
-
     startRoll("top");
-    const loop = window.setInterval(() => {
-      startRoll(nextSide);
-      nextSide = nextSide === "top" ? "bottom" : "top";
-    }, 3600);
+    timeouts.push(
+      window.setTimeout(() => startRoll("bottom"), 3600),
+      window.setTimeout(() => startRoll("top"), 7200)
+    );
 
     return () => {
       if (valueInterval !== null) {
         window.clearInterval(valueInterval);
       }
 
-      window.clearInterval(loop);
       timeouts.forEach((timeout) => window.clearTimeout(timeout));
     };
   }, [shouldReduceMotion]);
@@ -87,7 +84,7 @@ export function HomeTableScene() {
         }
         className="absolute left-1/2 top-1/2 h-[min(78rem,118vw)] w-[min(78rem,118vw)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-[radial-gradient(circle_at_48%_45%,rgba(22,120,87,0.98),rgba(6,78,59,0.97)_48%,rgba(5,46,43,1)_72%)] shadow-[inset_0_2px_0_rgba(255,255,255,0.16),inset_0_-80px_140px_rgba(0,0,0,0.28),0_40px_120px_rgba(0,0,0,0.35)]"
         transition={
-          shouldReduceMotion ? { duration: 0.01 } : { duration: 7, ease: "easeInOut", repeat: Infinity }
+          shouldReduceMotion ? { duration: 0.01 } : { duration: 7, ease: "easeInOut" }
         }
       />
 
