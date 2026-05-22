@@ -11,15 +11,14 @@ import {
   determineNextPlayer,
   isCategoryFilled,
   isScoreCategory,
-  scoreCategories,
   updateScoreCard,
   updateStruckCategories
 } from "@/game/scorecard";
 import {
   assertValidDiceValues,
   calculateScoreForCategory,
-  getRecommendedCategory
 } from "@/game/scoring";
+import { bot_decision } from "@/game/bot";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/server/auth/session";
 import { expireInactiveActiveGame } from "@/server/game/expiration";
@@ -76,18 +75,6 @@ function createDefaultBotName(players: Array<{ displayName: string }>) {
   return `Bot ${botNumber}`;
 }
 
-function getBestCategoryForBot(scoreCard: Prisma.ScoreCardGetPayload<Record<string, never>>, diceValues: number[]) {
-  const recommendedCategory = getRecommendedCategory(scoreCard, diceValues);
-
-  if (!recommendedCategory) {
-    return null;
-  }
-
-  return {
-    category: recommendedCategory,
-    points: calculateScoreForCategory(recommendedCategory, diceValues)
-  };
-}
 function orderedFriendshipPair(firstUserId: string, secondUserId: string) {
   return firstUserId < secondUserId
     ? { friendId: secondUserId, userId: firstUserId }
@@ -1422,36 +1409,37 @@ async function playBotTurnsUntilHumanTurn(tx: Prisma.TransactionClient, gameId: 
       return;
     }
 
-    const candidateRolls = Array.from({ length: 3 }, () =>
-      Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1)
+    let diceValues = Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1).sort(
+      (a, b) => a - b
     );
-    const best = candidateRolls
-      .map((diceValues) => ({
-        diceValues,
-        move: getBestCategoryForBot(scoreCard, diceValues)
-      }))
-      .filter(
-        (entry): entry is {
-          diceValues: number[];
-          move: { category: (typeof scoreCategories)[number]; points: number };
-        } => entry.move !== null
-      )
-      .sort((left, right) => right.move.points - left.move.points)[0];
 
-    if (!best) {
+    for (let rollsLeft = 2; rollsLeft > 0; rollsLeft -= 1) {
+      const decision = bot_decision(diceValues, rollsLeft, { difficulty: "hard", scorecard: scoreCard });
+
+      if (decision.action !== "hold") {
+        break;
+      }
+
+      const rerolled = decision.reroll.map(() => Math.floor(Math.random() * 6) + 1);
+      diceValues = [...decision.hold, ...rerolled].sort((a, b) => a - b);
+    }
+
+    const scoreDecision = bot_decision(diceValues, 0, { difficulty: "hard", scorecard: scoreCard });
+
+    if (scoreDecision.action !== "score") {
       return;
     }
 
-    const nextScoreCard = updateScoreCard(scoreCard, best.move.category, best.move.points);
+    const nextScoreCard = updateScoreCard(scoreCard, scoreDecision.category, scoreDecision.points);
     const struckCategories = updateStruckCategories(
       scoreCard.struckCategories,
-      best.move.category,
-      best.move.points === 0
+      scoreDecision.category,
+      scoreDecision.points === 0
     );
 
     await tx.scoreCard.update({
       data: {
-        [best.move.category]: best.move.points,
+        [scoreDecision.category]: scoreDecision.points,
         struckCategories,
         total: nextScoreCard.total,
         upperBonus: nextScoreCard.upperBonus
@@ -1461,7 +1449,7 @@ async function playBotTurnsUntilHumanTurn(tx: Prisma.TransactionClient, gameId: 
 
     await tx.turn.create({
       data: {
-        diceValues: best.diceValues,
+        diceValues,
         gameId: game.id,
         playerId: currentPlayer.id,
         status: "FINISHED"
@@ -1469,7 +1457,15 @@ async function playBotTurnsUntilHumanTurn(tx: Prisma.TransactionClient, gameId: 
     });
 
     const updatedCards = game.scoreCards.map((card) =>
-      card.id === scoreCard.id ? { ...card, [best.move.category]: best.move.points, struckCategories, total: nextScoreCard.total, upperBonus: nextScoreCard.upperBonus } : card
+      card.id === scoreCard.id
+        ? {
+            ...card,
+            [scoreDecision.category]: scoreDecision.points,
+            struckCategories,
+            total: nextScoreCard.total,
+            upperBonus: nextScoreCard.upperBonus
+          }
+        : card
     );
 
     if (areAllScoreCardsComplete(updatedCards)) {
