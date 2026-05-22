@@ -11,6 +11,7 @@ import { canUserManageCurrentTurn, getPlayerByUserId } from "@/game/game-state";
 import type { GameState } from "@/game/state";
 
 type GameViewProps = {
+  addBotPlayerAction: () => void | Promise<void>;
   addGuestPlayerAction: () => void | Promise<void>;
   currentUserId: string;
   enterScoreAction: (formData: FormData) => void | Promise<void>;
@@ -27,6 +28,7 @@ type GameViewProps = {
 };
 
 export function GameView({
+  addBotPlayerAction,
   addGuestPlayerAction,
   currentUserId,
   enterScoreAction,
@@ -198,6 +200,7 @@ export function GameView({
         />
       ) : (
         <GameLobby
+          addBotPlayerAction={addBotPlayerAction}
           addGuestPlayerAction={addGuestPlayerAction}
           currentUserId={currentUserId}
           inviteLink={inviteLink}

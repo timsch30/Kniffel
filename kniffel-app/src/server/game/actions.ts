@@ -15,7 +15,11 @@ import {
   updateScoreCard,
   updateStruckCategories
 } from "@/game/scorecard";
-import { assertValidDiceValues, calculateScoreForCategory } from "@/game/scoring";
+import {
+  assertValidDiceValues,
+  calculateScoreForCategory,
+  getRecommendedCategory
+} from "@/game/scoring";
 import { prisma } from "@/lib/prisma";
 import { requireCurrentUser } from "@/server/auth/session";
 import { expireInactiveActiveGame } from "@/server/game/expiration";
@@ -23,7 +27,7 @@ import { generateUniqueInviteCode } from "@/server/game/invite-code";
 
 const MAX_CREATE_GAME_ATTEMPTS = 5;
 const MAX_PLAYER_DISPLAY_NAME_LENGTH = 30;
-const MAX_BOT_COUNT = 5;
+const MAX_BOT_COUNT = 4;
 
 function isDebugAdmin(user: { username: string }): boolean {
   return user.username.trim().toLowerCase() === "admin";
@@ -61,22 +65,6 @@ function createDefaultGuestName(players: Array<{ displayName: string; userId: st
 }
 
 
-function readBotCount(formData: FormData): number {
-  const rawValue = readString(formData, "botCount");
-
-  if (!rawValue) {
-    return 0;
-  }
-
-  const parsedValue = Number(rawValue);
-
-  if (!Number.isInteger(parsedValue) || parsedValue < 0 || parsedValue > MAX_BOT_COUNT) {
-    throw new Error(`Bot-Anzahl muss zwischen 0 und ${MAX_BOT_COUNT} liegen.`);
-  }
-
-  return parsedValue;
-}
-
 function createDefaultBotName(players: Array<{ displayName: string }>) {
   const existingNames = new Set(players.map((player) => player.displayName.toLowerCase()));
   let botNumber = 1;
@@ -89,11 +77,16 @@ function createDefaultBotName(players: Array<{ displayName: string }>) {
 }
 
 function getBestCategoryForBot(scoreCard: Prisma.ScoreCardGetPayload<Record<string, never>>, diceValues: number[]) {
-  const availableCategories = scoreCategories.filter((category) => !isCategoryFilled(scoreCard, category));
+  const recommendedCategory = getRecommendedCategory(scoreCard, diceValues);
 
-  return availableCategories
-    .map((category) => ({ category, points: calculateScoreForCategory(category, diceValues) }))
-    .sort((a, b) => b.points - a.points)[0];
+  if (!recommendedCategory) {
+    return null;
+  }
+
+  return {
+    category: recommendedCategory,
+    points: calculateScoreForCategory(recommendedCategory, diceValues)
+  };
 }
 function orderedFriendshipPair(firstUserId: string, secondUserId: string) {
   return firstUserId < secondUserId
@@ -149,15 +142,6 @@ async function addUserToGame(
 export async function createGameAction(formData: FormData): Promise<void> {
   const user = await requireCurrentUser();
   const name = readString(formData, "name");
-  let botCount = 0;
-
-  try {
-    botCount = readBotCount(formData);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Bot-Konfiguration ist ungueltig.";
-
-    redirectWithError("/games/new", message);
-  }
 
   if (name.length < 3) {
     redirectWithError("/games/new", "Rundenname muss mindestens 3 Zeichen lang sein.");
@@ -201,32 +185,6 @@ export async function createGameAction(formData: FormData): Promise<void> {
             playerId: gamePlayer.id
           }
         });
-
-        const lobbyPlayers = [{ displayName: user.username }];
-
-        for (let botIndex = 0; botIndex < botCount; botIndex += 1) {
-          const displayName = createDefaultBotName(lobbyPlayers);
-          lobbyPlayers.push({ displayName });
-
-          const botPlayer = await tx.gamePlayer.create({
-            data: {
-              displayName,
-              gameId: createdGame.id,
-              isBot: true,
-              position: botIndex + 2
-            },
-            select: {
-              id: true
-            }
-          });
-
-          await tx.scoreCard.create({
-            data: {
-              gameId: createdGame.id,
-              playerId: botPlayer.id
-            }
-          });
-        }
 
         return createdGame;
       });
@@ -459,6 +417,80 @@ export async function addGuestPlayerAction(gameId: string): Promise<void> {
   redirect(errorPath);
 }
 
+export async function addBotPlayerAction(gameId: string): Promise<void> {
+  const user = await requireCurrentUser();
+  const errorPath = `/games/${gameId}`;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const game = await tx.game.findUnique({
+        include: {
+          players: {
+            orderBy: {
+              position: "asc"
+            },
+            select: {
+              displayName: true,
+              isBot: true,
+              position: true
+            }
+          }
+        },
+        where: {
+          id: gameId
+        }
+      });
+
+      if (!game) {
+        throw new Error("Runde wurde nicht gefunden.");
+      }
+
+      if (game.ownerId !== user.id) {
+        throw new Error("Nur der Owner kann Bots hinzufuegen.");
+      }
+
+      if (game.status !== "LOBBY") {
+        throw new Error("Bots koennen nur in der Lobby hinzugefuegt werden.");
+      }
+
+      const botCount = game.players.filter((player) => player.isBot).length;
+
+      if (botCount >= MAX_BOT_COUNT) {
+        throw new Error(`Es koennen maximal ${MAX_BOT_COUNT} Bots hinzugefuegt werden.`);
+      }
+
+      const nextPosition =
+        game.players.reduce((highestPosition, player) => Math.max(highestPosition, player.position), 0) +
+        1;
+      const gamePlayer = await tx.gamePlayer.create({
+        data: {
+          displayName: createDefaultBotName(game.players),
+          gameId: game.id,
+          isBot: true,
+          position: nextPosition
+        },
+        select: {
+          id: true
+        }
+      });
+
+      await tx.scoreCard.create({
+        data: {
+          gameId: game.id,
+          playerId: gamePlayer.id
+        }
+      });
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Bot konnte nicht hinzugefuegt werden.";
+
+    redirectWithError(errorPath, message);
+  }
+
+  revalidatePath(errorPath);
+  redirect(errorPath);
+}
+
 export async function renamePlayerAction(
   gameId: string,
   playerId: string,
@@ -569,7 +601,7 @@ export async function removeGuestPlayerAction(gameId: string, playerId: string):
       }
 
       if (player.userId !== null) {
-        throw new Error("Nur Gastspieler koennen entfernt werden.");
+        throw new Error("Nur lokale Spieler (Gast/Bot) koennen entfernt werden.");
       }
 
       await tx.gamePlayer.delete({
@@ -1390,19 +1422,36 @@ async function playBotTurnsUntilHumanTurn(tx: Prisma.TransactionClient, gameId: 
       return;
     }
 
-    const diceValues = Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1);
-    const best = getBestCategoryForBot(scoreCard, diceValues);
+    const candidateRolls = Array.from({ length: 3 }, () =>
+      Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1)
+    );
+    const best = candidateRolls
+      .map((diceValues) => ({
+        diceValues,
+        move: getBestCategoryForBot(scoreCard, diceValues)
+      }))
+      .filter(
+        (entry): entry is {
+          diceValues: number[];
+          move: { category: (typeof scoreCategories)[number]; points: number };
+        } => entry.move !== null
+      )
+      .sort((left, right) => right.move.points - left.move.points)[0];
 
     if (!best) {
       return;
     }
 
-    const nextScoreCard = updateScoreCard(scoreCard, best.category, best.points);
-    const struckCategories = updateStruckCategories(scoreCard.struckCategories, best.category, best.points === 0);
+    const nextScoreCard = updateScoreCard(scoreCard, best.move.category, best.move.points);
+    const struckCategories = updateStruckCategories(
+      scoreCard.struckCategories,
+      best.move.category,
+      best.move.points === 0
+    );
 
     await tx.scoreCard.update({
       data: {
-        [best.category]: best.points,
+        [best.move.category]: best.move.points,
         struckCategories,
         total: nextScoreCard.total,
         upperBonus: nextScoreCard.upperBonus
@@ -1410,10 +1459,17 @@ async function playBotTurnsUntilHumanTurn(tx: Prisma.TransactionClient, gameId: 
       where: { id: scoreCard.id }
     });
 
-    await tx.turn.create({ data: { diceValues, gameId: game.id, playerId: currentPlayer.id, status: "FINISHED" } });
+    await tx.turn.create({
+      data: {
+        diceValues: best.diceValues,
+        gameId: game.id,
+        playerId: currentPlayer.id,
+        status: "FINISHED"
+      }
+    });
 
     const updatedCards = game.scoreCards.map((card) =>
-      card.id === scoreCard.id ? { ...card, [best.category]: best.points, struckCategories, total: nextScoreCard.total, upperBonus: nextScoreCard.upperBonus } : card
+      card.id === scoreCard.id ? { ...card, [best.move.category]: best.move.points, struckCategories, total: nextScoreCard.total, upperBonus: nextScoreCard.upperBonus } : card
     );
 
     if (areAllScoreCardsComplete(updatedCards)) {
