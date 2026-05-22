@@ -1,17 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { WifiOff } from "lucide-react";
 
 import { GameLobby } from "@/components/game/GameLobby";
 import { GameTurnScreen } from "@/components/game/GameTurnScreen";
+import { useVisiblePolling } from "@/components/hooks/useVisiblePolling";
 import { Alert } from "@/components/ui/Alert";
 import { canUserManageCurrentTurn, getPlayerByUserId } from "@/game/game-state";
 import type { GameState } from "@/game/state";
 
 const TURN_REVEAL_DELAY_MS = 1500;
 const SAVE_REFRESH_RETRY_DELAY_MS = 250;
+const ACTIVE_TURN_POLL_INTERVAL_MS = 700;
+const ACTIVE_GAME_POLL_INTERVAL_MS = 3000;
+const IDLE_GAME_POLL_INTERVAL_MS = 5000;
 
 type GameViewProps = {
   addGuestPlayerAction: () => void | Promise<void>;
@@ -61,14 +65,25 @@ export function GameView({
   const [turnRevealPending, setTurnRevealPending] = useState(false);
   const fetchingRef = useRef(false);
   const pendingTurnRevealRef = useRef(false);
+  const stateRef = useRef(initialState);
   const wasCurrentUserAbleToAct = useRef(canUserManageCurrentTurn(initialState, currentUserId));
   const currentUserPlayer = getPlayerByUserId(state, currentUserId);
   const hasActiveTurn = Boolean(state.activeTurn);
+  const pollingIntervalMs = hasActiveTurn
+    ? ACTIVE_TURN_POLL_INTERVAL_MS
+    : state.status === "ACTIVE"
+      ? ACTIVE_GAME_POLL_INTERVAL_MS
+      : IDLE_GAME_POLL_INTERVAL_MS;
 
-  const fetchGameState = useCallback(async () => {
-    const response = await fetch(`/api/games/${initialState.gameId}/state`, {
+  const fetchGameState = useCallback(async (since?: string) => {
+    const query = since ? `?since=${encodeURIComponent(since)}` : "";
+    const response = await fetch(`/api/games/${initialState.gameId}/state${query}`, {
       cache: "no-store"
     });
+
+    if (response.status === 204) {
+      return null;
+    }
 
     if (!response.ok) {
       throw new Error("Aktualisierung fehlgeschlagen.");
@@ -85,12 +100,24 @@ export function GameView({
         updateAbilityTracking = true
       }: ApplyStateOptions = {}
     ) => {
+      const currentState = stateRef.current;
       const nextCanCurrentUserAct = canUserManageCurrentTurn(nextState, currentUserId);
 
+      if (nextState.updatedAt === currentState.updatedAt) {
+        setPollError(null);
+
+        if (updateAbilityTracking) {
+          wasCurrentUserAbleToAct.current = nextCanCurrentUserAct;
+        }
+
+        return nextState;
+      }
+
+      stateRef.current = nextState;
       setState(nextState);
       setPollError(null);
 
-      if (nextState.status === "ACTIVE" && state.status !== "ACTIVE") {
+      if (nextState.status === "ACTIVE" && currentState.status !== "ACTIVE") {
         setTurnModeOpen(true);
       }
 
@@ -104,14 +131,21 @@ export function GameView({
 
       return nextState;
     },
-    [currentUserId, state.status]
+    [currentUserId]
   );
 
   const refreshState = useCallback(async () => {
-    const playerIdBeforeRefresh = state.currentPlayerId;
-    const latestEntryIdBeforeRefresh = state.latestEntry?.id ?? null;
-    const canActBeforeRefresh = canUserManageCurrentTurn(state, currentUserId);
-    const nextState = await fetchGameState();
+    const currentState = stateRef.current;
+    const playerIdBeforeRefresh = currentState.currentPlayerId;
+    const latestEntryIdBeforeRefresh = currentState.latestEntry?.id ?? null;
+    const canActBeforeRefresh = canUserManageCurrentTurn(currentState, currentUserId);
+    const nextState = await fetchGameState(currentState.updatedAt);
+
+    if (!nextState) {
+      setPollError(null);
+      return currentState;
+    }
+
     const allowTurnReveal = !pendingTurnRevealRef.current;
     const nextCanCurrentUserAct = canUserManageCurrentTurn(nextState, currentUserId);
     const hasNewLatestEntry =
@@ -151,41 +185,27 @@ export function GameView({
     });
 
     return nextState;
-  }, [applyState, currentUserId, fetchGameState, state]);
+  }, [applyState, currentUserId, fetchGameState]);
 
-  useEffect(() => {
-    let active = true;
-    const pollingIntervalMs = hasActiveTurn ? 700 : 2500;
-
-    async function fetchState() {
-      if (fetchingRef.current) {
-        return;
-      }
-
-      fetchingRef.current = true;
-
-      try {
-        await refreshState();
-
-        if (!active) {
-          return;
-        }
-      } catch {
-        if (active) {
-          setPollError("Live-Aktualisierung pausiert.");
-        }
-      } finally {
-        fetchingRef.current = false;
-      }
+  const pollGameState = useCallback(async () => {
+    if (fetchingRef.current) {
+      return;
     }
 
-    const intervalId = window.setInterval(fetchState, pollingIntervalMs);
+    fetchingRef.current = true;
 
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-    };
-  }, [hasActiveTurn, refreshState]);
+    try {
+      await refreshState();
+    } catch {
+      setPollError("Live-Aktualisierung pausiert.");
+    } finally {
+      fetchingRef.current = false;
+    }
+  }, [refreshState]);
+
+  useVisiblePolling(pollGameState, {
+    intervalMs: pollingIntervalMs
+  });
 
   return (
     <>
@@ -210,16 +230,17 @@ export function GameView({
           enterScoreAction={enterScoreAction}
           onBackToLobby={() => setTurnModeOpen(false)}
           onSaved={() => {
-            const playerIdBeforeSave = state.currentPlayerId;
-            const latestEntryIdBeforeSave = state.latestEntry?.id ?? null;
-            const canActBeforeSave = canUserManageCurrentTurn(state, currentUserId);
+            const currentState = stateRef.current;
+            const playerIdBeforeSave = currentState.currentPlayerId;
+            const latestEntryIdBeforeSave = currentState.latestEntry?.id ?? null;
+            const canActBeforeSave = canUserManageCurrentTurn(currentState, currentUserId);
 
             void (async () => {
               for (let attempt = 0; attempt < 6; attempt += 1) {
                 try {
                   const nextState = await fetchGameState();
 
-                  if (nextState.currentPlayerId !== playerIdBeforeSave) {
+                  if (nextState && nextState.currentPlayerId !== playerIdBeforeSave) {
                     const nextCanCurrentUserAct = canUserManageCurrentTurn(nextState, currentUserId);
                     const hasNewLatestEntry =
                       Boolean(nextState.latestEntry) &&

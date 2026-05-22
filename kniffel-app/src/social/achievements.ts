@@ -247,7 +247,7 @@ export const achievementDefinitions = [
     description: "Hole den oberen Bonus in einem Spiel.",
     getValue: (stats) => stats.perfectUpperBonusGames,
     id: "perfect-upper-bonus",
-    label: "Perfekter Bonus",
+    label: "Oberer Bonus",
     rarity: "epic",
     target: 1
   },
@@ -289,7 +289,7 @@ export const achievementDefinitions = [
   },
   {
     category: "secret",
-    description: "Streiche in einem Spiel alle Kategorien.",
+    description: "Beende ein Spiel, in dem alle Kategorien gestrichen sind.",
     getValue: (stats) => stats.allCategoriesStruckGames,
     hidden: true,
     id: "all-struck",

@@ -187,6 +187,7 @@ export async function getGameState(
     await expireInactiveActiveGame(game.id);
   }
 
+  const stateUpdatedAt = expired ? new Date() : game.updatedAt;
   const scoreCards = game.scoreCards.map((scoreCard) => {
     const normalizedScoreCard = Object.fromEntries(
       scoreCategories.map((category) => [category, scoreCard[category] ?? null])
@@ -307,6 +308,7 @@ export async function getGameState(
     roundNumber: game.roundNumber,
     scoreCards,
     status,
+    updatedAt: stateUpdatedAt.toISOString(),
     winner
   };
 }

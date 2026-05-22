@@ -74,6 +74,17 @@ function orderedFriendshipPair(firstUserId: string, secondUserId: string) {
     : { friendId: firstUserId, userId: secondUserId };
 }
 
+async function touchGame(tx: Prisma.TransactionClient, gameId: string) {
+  await tx.game.update({
+    data: {
+      updatedAt: new Date()
+    },
+    where: {
+      id: gameId
+    }
+  });
+}
+
 async function addUserToGame(
   tx: Prisma.TransactionClient,
   gameId: string,
@@ -117,6 +128,8 @@ async function addUserToGame(
       playerId: gamePlayer.id
     }
   });
+
+  await touchGame(tx, gameId);
 }
 
 export async function createGameAction(formData: FormData): Promise<void> {
@@ -314,6 +327,8 @@ export async function inviteFriendToGameAction(formData: FormData): Promise<void
           }
         }
       });
+
+      await touchGame(tx, gameId);
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
@@ -385,6 +400,8 @@ export async function addGuestPlayerAction(gameId: string): Promise<void> {
           playerId: gamePlayer.id
         }
       });
+
+      await touchGame(tx, game.id);
     });
   } catch (error) {
     const message =
@@ -452,6 +469,8 @@ export async function renamePlayerAction(
           id: playerId
         }
       });
+
+      await touchGame(tx, gameId);
     });
   } catch (error) {
     const message =
@@ -534,6 +553,8 @@ export async function removeGuestPlayerAction(gameId: string, playerId: string):
           }
         });
       }
+
+      await touchGame(tx, game.id);
     });
   } catch (error) {
     const message =
@@ -709,6 +730,8 @@ export async function leaveGameAction(gameId: string): Promise<void> {
             id: game.id
           }
         });
+      } else {
+        await touchGame(tx, game.id);
       }
     });
   } catch (error) {
@@ -961,6 +984,7 @@ export async function reorderPlayersAction(gameId: string, formData: FormData): 
       }
 
       await applyPlayerOrder(tx, game.players, playerOrder);
+      await touchGame(tx, game.id);
     });
   } catch (error) {
     const message =
@@ -1052,6 +1076,8 @@ export async function movePlayerAction(
           id: currentPlayer.id
         }
       });
+
+      await touchGame(tx, game.id);
     });
   } catch (error) {
     const message =

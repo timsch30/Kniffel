@@ -52,7 +52,7 @@ export function WinnerCelebrationOverlay() {
         transition={
           shouldReduceMotion
             ? { duration: 0.01 }
-            : { duration: 5.2, ease: "easeInOut", repeat: Infinity }
+            : { duration: 5.2, ease: "easeInOut", repeat: 1 }
         }
       />
       <motion.div
@@ -65,7 +65,7 @@ export function WinnerCelebrationOverlay() {
         transition={
           shouldReduceMotion
             ? { duration: 0.01 }
-            : { duration: 4.2, ease: "easeOut", repeat: Infinity, repeatDelay: 0.18 }
+            : { duration: 4.2, ease: "easeOut", repeat: 1, repeatDelay: 0.18 }
         }
       />
       <motion.div
@@ -78,7 +78,7 @@ export function WinnerCelebrationOverlay() {
         transition={
           shouldReduceMotion
             ? { duration: 0.01 }
-            : { delay: 0.8, duration: 5.6, ease: "easeOut", repeat: Infinity }
+            : { delay: 0.8, duration: 5.6, ease: "easeOut", repeat: 1 }
         }
       />
       <motion.div
@@ -91,7 +91,7 @@ export function WinnerCelebrationOverlay() {
         transition={
           shouldReduceMotion
             ? { duration: 0.01 }
-            : { duration: 8, ease: "easeInOut", repeat: Infinity }
+            : { duration: 8, ease: "easeInOut", repeat: 1 }
         }
       />
 
@@ -116,7 +116,7 @@ export function WinnerCelebrationOverlay() {
                 delay: sparkle.delay,
                 duration: 3.2 + (index % 4) * 0.34,
                 ease: "easeOut",
-                repeat: Infinity,
+                repeat: 1,
                 repeatDelay: 1.8 + (index % 5) * 0.28
               }}
             />
@@ -128,22 +128,22 @@ export function WinnerCelebrationOverlay() {
           <motion.div
             className="absolute inset-x-0 top-[30%] h-px bg-gradient-to-r from-transparent via-brass/80 to-transparent"
             animate={{ opacity: [0.1, 0.72, 0.18], scaleX: [0.42, 1, 0.62] }}
-            transition={{ duration: 4, ease: "easeInOut", repeat: Infinity }}
+            transition={{ duration: 4, ease: "easeInOut", repeat: 1 }}
           />
           <motion.div
             className="absolute inset-x-0 top-[47%] h-px bg-gradient-to-r from-transparent via-white/45 to-transparent"
             animate={{ opacity: [0, 0.48, 0], scaleX: [0.28, 1, 0.3] }}
-            transition={{ delay: 1.1, duration: 5.2, ease: "easeInOut", repeat: Infinity }}
+            transition={{ delay: 1.1, duration: 5.2, ease: "easeInOut", repeat: 1 }}
           />
           <motion.div
             className="absolute left-1/2 top-[36%] h-[36rem] w-12 origin-center -translate-x-1/2 -translate-y-1/2 bg-gradient-to-b from-transparent via-brass/18 to-transparent blur-xl"
             animate={{ opacity: [0.08, 0.34, 0.08], rotate: [32, 52, 32] }}
-            transition={{ duration: 7.2, ease: "easeInOut", repeat: Infinity }}
+            transition={{ duration: 7.2, ease: "easeInOut", repeat: 1 }}
           />
           <motion.div
             className="absolute left-1/2 top-[36%] h-[34rem] w-10 origin-center -translate-x-1/2 -translate-y-1/2 bg-gradient-to-b from-transparent via-white/14 to-transparent blur-xl"
             animate={{ opacity: [0.05, 0.28, 0.05], rotate: [-42, -62, -42] }}
-            transition={{ delay: 1.8, duration: 8.4, ease: "easeInOut", repeat: Infinity }}
+            transition={{ delay: 1.8, duration: 8.4, ease: "easeInOut", repeat: 1 }}
           />
         </>
       ) : null}

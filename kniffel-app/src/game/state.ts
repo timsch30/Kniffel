@@ -82,5 +82,6 @@ export type GameState = {
   roundNumber: number;
   scoreCards: GameStateScoreCard[];
   status: string;
+  updatedAt: string;
   winner: GameStateWinner;
 };

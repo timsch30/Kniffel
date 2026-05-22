@@ -228,6 +228,36 @@ describe("achievement stats", () => {
     strictEqual(stats.longestWinStreak, 1);
   });
 
+  it("counts live kniffel rolls without counting active games as played", () => {
+    const games: Game[] = [
+      {
+        completed: false,
+        date: "2026-05-21T12:00:00.000Z",
+        highlights: ["KNIFFEL"],
+        id: "active-double-kniffel",
+        results: [
+          {
+            categoryScores: {},
+            kniffelCount: 2,
+            playerId: "user-1",
+            score: 0
+          }
+        ],
+        winnerId: "user-1"
+      }
+    ];
+    const stats = calculatePlayerStats(games, "user-1");
+    const achievements = calculateAchievements(stats);
+
+    strictEqual(stats.gamesPlayed, 0);
+    strictEqual(stats.totalPoints, 0);
+    strictEqual(stats.totalKniffel, 2);
+    strictEqual(stats.bestGameKniffel, 2);
+    strictEqual(stats.doubleKniffelGames, 1);
+    strictEqual(achievements.find((achievement) => achievement.id === "double-kniffel")?.earned, true);
+    strictEqual(achievements.find((achievement) => achievement.id === "first-game")?.earned, false);
+  });
+
   it("derives exact score and hidden-achievement source stats", () => {
     const games: Game[] = [
       {

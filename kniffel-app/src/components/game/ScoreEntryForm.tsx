@@ -644,6 +644,7 @@ export function ScoreEntryForm({
       bonusAwarded,
       upperScore: nextUpperScore
     });
+    window.dispatchEvent(new CustomEvent("kniffel:score-saved"));
   }
 
   const parsedManualPoints = Number(manualPoints);
@@ -743,7 +744,7 @@ export function ScoreEntryForm({
                   transition={
                     shouldReduceMotion
                       ? { duration: 0.01 }
-                      : { duration: 7, ease: "easeInOut", repeat: Infinity }
+                      : { duration: 7, ease: "easeInOut", repeat: 1 }
                   }
                 />
                 <div className="relative flex items-center justify-between gap-3">
@@ -1138,7 +1139,7 @@ export function ScoreEntryForm({
       ) : null}
 
       {!(onlineRollMode && mode === "dice") ? (
-        <div className="fixed inset-x-0 bottom-0 z-[80] border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="fixed inset-x-0 bottom-0 z-[80] border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-50/60">

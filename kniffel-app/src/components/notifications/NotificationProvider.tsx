@@ -115,7 +115,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                   ? { opacity: 1 }
                   : { opacity: 1, scale: 1, y: 0 }
               }
-              className="pointer-events-auto relative w-full max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-white/10 bg-emerald-950/92 p-3 text-white shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:max-w-md sm:p-4"
+              className="pointer-events-auto relative w-full max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-white/10 bg-emerald-950/92 p-3 text-white shadow-[0_24px_80px_rgba(0,0,0,0.42)] sm:max-w-md sm:p-4 sm:backdrop-blur-xl"
               exit={
                 shouldReduceMotion
                   ? { opacity: 0 }

@@ -56,7 +56,7 @@ function LiveDiceWindow({
   return (
     <section
       className={cn(
-        "fixed inset-x-3 bottom-3 z-30 mx-auto max-w-sm overflow-hidden rounded-lg border border-brass/30 bg-[linear-gradient(145deg,rgba(6,78,59,0.94),rgba(2,23,19,0.96))] p-2.5 shadow-[0_18px_54px_rgba(0,0,0,0.34)] backdrop-blur-xl transition-[bottom] duration-200 sm:bottom-5",
+        "fixed inset-x-3 bottom-3 z-30 mx-auto max-w-sm overflow-hidden rounded-lg border border-brass/30 bg-[linear-gradient(145deg,rgba(6,78,59,0.94),rgba(2,23,19,0.96))] p-2.5 shadow-[0_18px_54px_rgba(0,0,0,0.34)] transition-[bottom] duration-200 sm:bottom-5 sm:backdrop-blur-xl",
         className
       )}
     >
@@ -333,7 +333,7 @@ export function GameTurnScreen({
         className="pointer-events-none absolute inset-0 -z-10 opacity-[0.06] [background-image:linear-gradient(90deg,white_1px,transparent_1px),linear-gradient(white_1px,transparent_1px)] [background-size:32px_32px]"
       />
       <div className="grid gap-4">
-        <div className="sticky top-0 z-20 -mx-4 border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:static sm:mx-0 sm:rounded-lg sm:border sm:bg-white/[0.08]">
+        <div className="sticky top-0 z-20 -mx-4 border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.2)] sm:static sm:mx-0 sm:rounded-lg sm:border sm:bg-white/[0.08] sm:backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3">
             <button
               aria-label="Zurueck zur Uebersicht"
@@ -411,7 +411,7 @@ export function GameTurnScreen({
                         transition={
                           shouldReduceMotion
                             ? { duration: 0.01 }
-                            : { duration: 2.8, ease: "easeInOut", repeat: Infinity }
+                            : { duration: 2.8, ease: "easeInOut", repeat: 2 }
                         }
                       />
                     ) : null}
@@ -485,7 +485,7 @@ export function GameTurnScreen({
       </div>
 
       {canManageTurn && activeScoreCard ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-emerald-50/60">
@@ -528,7 +528,7 @@ export function GameTurnScreen({
               aria-hidden="true"
               className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(244,185,66,0.13),transparent_26rem),radial-gradient(circle_at_15%_18%,rgba(16,185,129,0.14),transparent_24rem),linear-gradient(180deg,#064e3b,#021713)]"
             />
-            <div className="sticky top-0 z-[70] border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.26)] backdrop-blur-xl">
+            <div className="sticky top-0 z-[70] border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.26)] sm:backdrop-blur-xl">
               <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-bold uppercase text-brass">
@@ -569,13 +569,13 @@ export function GameTurnScreen({
         {showRollModePicker && canManageTurn ? (
           <motion.div
             animate={{ opacity: 1 }}
-            className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 sm:backdrop-blur-sm"
             exit={{ opacity: 0 }}
             initial={{ opacity: 0 }}
           >
             <div className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
               <button
-                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-5 text-center text-emerald-50 shadow-xl backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12]"
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-5 text-center text-emerald-50 shadow-xl transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12] sm:backdrop-blur-xl"
                 onClick={() => {
                   setRollMode("real");
                   setShowRollModePicker(false);
@@ -586,7 +586,7 @@ export function GameTurnScreen({
                 <span className="text-lg font-semibold">Echte Wuerfel</span>
               </button>
               <button
-                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-brass/35 bg-[linear-gradient(145deg,rgba(244,185,66,0.18),rgba(16,185,129,0.12))] p-5 text-center text-white shadow-xl backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-brass/60 hover:bg-brass/15"
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-brass/35 bg-[linear-gradient(145deg,rgba(244,185,66,0.18),rgba(16,185,129,0.12))] p-5 text-center text-white shadow-xl transition-all hover:-translate-y-0.5 hover:border-brass/60 hover:bg-brass/15 sm:backdrop-blur-xl"
                 onClick={() => {
                   setRollMode("online");
                   setShowRollModePicker(false);

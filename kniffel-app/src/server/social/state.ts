@@ -138,7 +138,7 @@ function getHighlights(results: PlayerGameResult[]): GameHighlight[] {
   return highlights;
 }
 
-async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
+async function getSocialGames(userIds: string[]): Promise<Game[]> {
   if (userIds.length === 0) {
     return [];
   }
@@ -174,15 +174,14 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
           }
         }
       },
-      status: "FINISHED"
+      status: {
+        in: ["ACTIVE", "FINISHED"]
+      }
     }
   });
 
   return games.flatMap((game) => {
-    if (!game.scoreCards.every(isCompleteScoreCard)) {
-      return [];
-    }
-
+    const completed = game.status === "FINISHED" && game.scoreCards.every(isCompleteScoreCard);
     const results = game.scoreCards.flatMap((scoreCard) => {
       const player = game.players.find((entry) => entry.id === scoreCard.playerId);
 
@@ -190,10 +189,25 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
         return [];
       }
 
+      const kniffelCount = getKniffelCount(scoreCard, game.turns);
+
+      if (!completed) {
+        return kniffelCount > 0
+          ? [
+              {
+                categoryScores: {},
+                kniffelCount,
+                playerId: player.userId,
+                score: 0
+              }
+            ]
+          : [];
+      }
+
       return [
         {
           categoryScores: getCategoryScores(scoreCard),
-          kniffelCount: getKniffelCount(scoreCard, game.turns),
+          kniffelCount,
           playerId: player.userId,
           score: scoreCard.total ?? calculateTotalScore(scoreCard),
           struckCategoryCount: normalizeStruckCategories(scoreCard.struckCategories).length,
@@ -211,6 +225,7 @@ async function getFinishedSocialGames(userIds: string[]): Promise<Game[]> {
 
     return [
       {
+        completed,
         date: game.updatedAt.toISOString(),
         highlights: getHighlights(results),
         id: game.id,
@@ -322,7 +337,7 @@ export async function getSocialState(): Promise<SocialState> {
 
       return new Date(right.lastActiveAt).getTime() - new Date(left.lastActiveAt).getTime();
     });
-  const games = await getFinishedSocialGames([user.id, ...friends.map((friend) => friend.id)]);
+  const games = await getSocialGames([user.id, ...friends.map((friend) => friend.id)]);
 
   return {
     friends,

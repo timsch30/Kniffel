@@ -36,6 +36,7 @@ export type PlayerGameResult = {
 };
 
 export type Game = {
+  completed?: boolean;
   date: string;
   highlights: GameHighlight[];
   id: string;

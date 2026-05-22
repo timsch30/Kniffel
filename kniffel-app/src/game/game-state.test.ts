@@ -31,6 +31,7 @@ const finishedState: GameState = {
   roundNumber: 3,
   scoreCards: [],
   status: "FINISHED",
+  updatedAt: "2026-05-22T00:00:00.000Z",
   winner: { displayName: "Ada", playerId: "player-1", total: 250 }
 };
 
