@@ -654,7 +654,8 @@ export function ScoreEntryForm({
     parsedManualPoints <= 100;
   const validDiceValues = mode === "dice" && isValidDiceValues(diceValues);
   const canScoreCategory = validDiceValues && rollCount >= 1;
-  const showMainRecommendation = validDiceValues && rollCount === 3;
+  const showMainRecommendation =
+    validDiceValues && (onlineRollMode ? rollCount === 3 : diceValues.length === 5);
   const canSubmit =
     selectedCategory !== null &&
     (mode === "dice" ? canScoreCategory && !isRolling : manualPointsValid);
