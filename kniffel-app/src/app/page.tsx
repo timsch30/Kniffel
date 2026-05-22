@@ -1,13 +1,17 @@
 import Link from "next/link";
 
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, LogIn, Plus, UserPlus } from "lucide-react";
 
+import { HomeSessionRedirect } from "@/components/home/HomeSessionRedirect";
+import { HomeTableScene } from "@/components/home/HomeTableScene";
 import { Badge } from "@/components/ui/Badge";
 import { buttonVariants } from "@/components/ui/Button";
 
-export default function HomePage() {
+export default async function HomePage() {
   return (
     <main className="relative min-h-screen overflow-hidden text-white">
+      <HomeTableScene />
+      <HomeSessionRedirect />
       <section className="relative z-10 grid min-h-screen place-items-center px-4 py-10">
         <div className="grid max-w-3xl gap-7 text-center">
           <Badge className="mx-auto w-fit" variant="accent">
@@ -32,9 +36,14 @@ export default function HomePage() {
               <ArrowRight aria-hidden="true" className="h-5 w-5" />
             </Link>
           </div>
-          <div className="flex justify-center text-sm text-white/70">
+          <div className="flex justify-center gap-3 text-sm text-white/70">
             <Link className={buttonVariants("ghost", "sm")} href="/login">
+              <LogIn aria-hidden="true" className="h-4 w-4" />
               Einloggen
+            </Link>
+            <Link className={buttonVariants("ghost", "sm")} href="/register">
+              <UserPlus aria-hidden="true" className="h-4 w-4" />
+              Registrieren
             </Link>
           </div>
         </div>
