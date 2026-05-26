@@ -33,6 +33,7 @@ type ScoreEntryFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   initialDiceValues?: number[];
   onlineRollMode?: boolean;
+  onOnlineTurnUpdate?: (payload: OnlineTurnUpdatePayload) => void | Promise<void>;
   onSaved?: (feedback?: ScoreSaveFeedback) => void;
   scoreCard: ScoreCard;
 };
@@ -43,6 +44,11 @@ export type ScoreSaveFeedback = {
 };
 
 type EntryMode = "dice" | "manual";
+type OnlineTurnUpdatePayload = {
+  diceValues: number[];
+  heldDice: boolean[];
+  rollCount: number;
+};
 type MotionPermissionStatus =
   | "denied"
   | "granted"
@@ -130,6 +136,7 @@ export function ScoreEntryForm({
   action,
   initialDiceValues = EMPTY_DICE_VALUES,
   onlineRollMode = false,
+  onOnlineTurnUpdate,
   onSaved,
   scoreCard
 }: ScoreEntryFormProps) {
@@ -146,6 +153,7 @@ export function ScoreEntryForm({
   const rollFinishRef = useRef<number | null>(null);
   const diceButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const kniffelBurstRef = useRef<HTMLDivElement | null>(null);
+  const onlineTurnInitializedRef = useRef(false);
   const pendingLandingDiceValuesRef = useRef<number[] | null>(null);
   const diceLandingTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const diceRollTimelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -156,6 +164,19 @@ export function ScoreEntryForm({
   const [rollCount, setRollCount] = useState(initialDiceValues.length === 5 ? 1 : 0);
   const [shakeSensitivity, setShakeSensitivity] = useState(2);
   const shouldReduceMotion = useReducedMotion();
+
+  const notifyOnlineTurn = useCallback(
+    (payload: OnlineTurnUpdatePayload) => {
+      if (!onlineRollMode || mode !== "dice" || !onOnlineTurnUpdate) {
+        return;
+      }
+
+      void Promise.resolve(onOnlineTurnUpdate(payload)).catch(() => {
+        // Polling will correct stale live dice state if a transient update fails.
+      });
+    },
+    [mode, onOnlineTurnUpdate, onlineRollMode]
+  );
 
   const playDiceRollAnimation = useCallback(() => {
     diceRollTimelineRef.current?.kill();
@@ -352,6 +373,19 @@ export function ScoreEntryForm({
     });
   }, [initialDiceValues]);
 
+  useEffect(() => {
+    if (!onlineRollMode || mode !== "dice" || onlineTurnInitializedRef.current) {
+      return;
+    }
+
+    onlineTurnInitializedRef.current = true;
+    notifyOnlineTurn({
+      diceValues: isValidDiceValues(diceValues) ? diceValues : [],
+      heldDice,
+      rollCount
+    });
+  }, [diceValues, heldDice, mode, notifyOnlineTurn, onlineRollMode, rollCount]);
+
   const rollDice = useCallback(() => {
     if (isRolling || rollCount >= 3) {
       return;
@@ -381,16 +415,21 @@ export function ScoreEntryForm({
         rollAnimationRef.current = null;
       }
 
-      setDiceValues((previous) => {
-        const nextValues = buildNextValues(previous);
-        pendingLandingDiceValuesRef.current = nextValues;
-        setRollingDiceValues(nextValues);
-        return nextValues;
+      const nextValues = buildNextValues(diceValues);
+      const nextRollCount = Math.min(3, rollCount + 1);
+
+      pendingLandingDiceValuesRef.current = nextValues;
+      setRollingDiceValues(nextValues);
+      setDiceValues(nextValues);
+      setRollCount(nextRollCount);
+      notifyOnlineTurn({
+        diceValues: nextValues,
+        heldDice,
+        rollCount: nextRollCount
       });
-      setRollCount((previous) => previous + 1);
       setIsRolling(false);
     }, ROLL_ANIMATION_DURATION_MS);
-  }, [diceValues, heldDice, isRolling, playDiceRollAnimation, rollCount]);
+  }, [diceValues, heldDice, isRolling, notifyOnlineTurn, playDiceRollAnimation, rollCount]);
 
   useEffect(() => {
     if (isRolling || pendingLandingDiceValuesRef.current === null) {
@@ -502,7 +541,17 @@ export function ScoreEntryForm({
       return;
     }
 
-    setHeldDice((previous) => previous.map((held, position) => (position === index ? !held : held)));
+    const nextHeldDice = heldDice.map((held, position) => (position === index ? !held : held));
+
+    setHeldDice(nextHeldDice);
+
+    if (diceValues.length === DICE_COUNT) {
+      notifyOnlineTurn({
+        diceValues,
+        heldDice: nextHeldDice,
+        rollCount
+      });
+    }
   }
 
   useEffect(() => {
@@ -595,6 +644,7 @@ export function ScoreEntryForm({
       bonusAwarded,
       upperScore: nextUpperScore
     });
+    window.dispatchEvent(new CustomEvent("kniffel:score-saved"));
   }
 
   const parsedManualPoints = Number(manualPoints);
@@ -605,7 +655,8 @@ export function ScoreEntryForm({
     parsedManualPoints <= 100;
   const validDiceValues = mode === "dice" && isValidDiceValues(diceValues);
   const canScoreCategory = validDiceValues && rollCount >= 1;
-  const showMainRecommendation = validDiceValues && rollCount === 3;
+  const showMainRecommendation =
+    validDiceValues && (onlineRollMode ? rollCount === 3 : diceValues.length === 5);
   const canSubmit =
     selectedCategory !== null &&
     (mode === "dice" ? canScoreCategory && !isRolling : manualPointsValid);
@@ -693,7 +744,7 @@ export function ScoreEntryForm({
                   transition={
                     shouldReduceMotion
                       ? { duration: 0.01 }
-                      : { duration: 7, ease: "easeInOut", repeat: Infinity }
+                      : { duration: 7, ease: "easeInOut", repeat: 1 }
                   }
                 />
                 <div className="relative flex items-center justify-between gap-3">
@@ -1030,6 +1081,11 @@ export function ScoreEntryForm({
       )}
 
       <input name="mode" type="hidden" value={mode} />
+      <input
+        name="entryMode"
+        type="hidden"
+        value={mode === "manual" ? "manual" : onlineRollMode ? "online" : "real"}
+      />
       <input name="category" type="hidden" value={confirmationCategory ?? selectedCategory ?? ""} />
       <input name="diceValues" type="hidden" value={JSON.stringify(diceValues)} />
 
@@ -1083,7 +1139,7 @@ export function ScoreEntryForm({
       ) : null}
 
       {!(onlineRollMode && mode === "dice") ? (
-        <div className="fixed inset-x-0 bottom-0 z-[80] border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="fixed inset-x-0 bottom-0 z-[80] border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-50/60">

@@ -80,7 +80,7 @@ export function ScoreSuggestions({
                     "absolute -right-8 -top-10 h-24 w-24 rounded-full blur-2xl",
                     isStrike ? "bg-rose-300/20 dark:bg-rose-200/10" : "bg-amber-300/25 dark:bg-amber-200/10"
                   ].join(" ")}
-                  transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{ duration: 2.8, repeat: 2, ease: "easeInOut" }}
                 />
               ) : null}
               <span className="min-w-0">

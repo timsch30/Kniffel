@@ -36,7 +36,7 @@ export function HeaderContent({
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 border-b backdrop-blur-xl",
+        "sticky top-0 z-30 border-b sm:backdrop-blur-xl",
         "border-white/10 bg-emerald-950/[0.82]",
         className
       )}

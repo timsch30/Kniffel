@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Check, X } from "lucide-react";
 
@@ -39,38 +39,17 @@ export function DashboardRequests({
 }: DashboardRequestsProps) {
   const [requests, setRequests] = useState(initialRequests);
 
-  const refreshRequests = useCallback(async () => {
-    const response = await fetch("/api/dashboard/requests", {
-      cache: "no-store"
-    });
-
-    if (!response.ok) {
-      return;
-    }
-
-    setRequests((await response.json()) as DashboardRequestsState);
-  }, []);
-
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      void refreshRequests();
-    }, 4000);
-
-    function refreshWhenVisible() {
-      if (document.visibilityState === "visible") {
-        void refreshRequests();
-      }
+    function handleDashboardRequests(event: Event) {
+      setRequests((event as CustomEvent<DashboardRequestsState>).detail);
     }
 
-    window.addEventListener("focus", refreshRequests);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("kniffel:dashboard-requests", handleDashboardRequests);
 
     return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshRequests);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("kniffel:dashboard-requests", handleDashboardRequests);
     };
-  }, [refreshRequests]);
+  }, []);
 
   const openCount = requests.friendRequests.length + requests.gameInvitations.length;
 

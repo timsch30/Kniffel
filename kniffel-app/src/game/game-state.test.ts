@@ -9,12 +9,15 @@ import { canUserManageCurrentTurn } from "@/game/game-state";
 import type { GameState } from "@/game/state";
 
 const finishedState: GameState = {
+  activeTurn: null,
   currentPlayerId: null,
   currentPlayerName: null,
   friendInvites: [],
   gameId: "game-1",
   inviteCode: "ABC123",
   lastAction: null,
+  lastEntries: [],
+  latestEntry: null,
   name: "Finale",
   ownerId: "user-1",
   players: [
@@ -28,6 +31,7 @@ const finishedState: GameState = {
   roundNumber: 3,
   scoreCards: [],
   status: "FINISHED",
+  updatedAt: "2026-05-22T00:00:00.000Z",
   winner: { displayName: "Ada", playerId: "player-1", total: 250 }
 };
 

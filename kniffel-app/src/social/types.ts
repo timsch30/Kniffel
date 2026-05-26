@@ -30,10 +30,13 @@ export type PlayerGameResult = {
   kniffelCount: number;
   playerId: PlayerId;
   score: number;
+  struckCategoryCount?: number;
   upperBonus?: number;
+  upperScore?: number;
 };
 
 export type Game = {
+  completed?: boolean;
   date: string;
   highlights: GameHighlight[];
   id: string;
@@ -57,7 +60,12 @@ export type PlayerStats = {
   bestGameKniffel: number;
   currentWinStreak: number;
   doubleKniffelGames: number;
+  exactScore111Games: number;
+  exactScore222Games: number;
+  exactScore333Games: number;
   exactScore375Games: number;
+  exactUpper67Games: number;
+  exactUpper69Games: number;
   favoriteCategory: string;
   fullHouseCount: number;
   gamesPlayed: number;
@@ -65,8 +73,11 @@ export type PlayerStats = {
   highestScore: number;
   kniffelPerGame: number;
   longestWinStreak: number;
+  lowScoreUnder150Games: number;
   perfectUpperBonusGames: number;
+  score330Games: number;
   straightBuilderGames: number;
+  allCategoriesStruckGames: number;
   tripleKniffelGames: number;
   totalKniffel: number;
   totalPoints: number;
@@ -125,8 +136,11 @@ export type Achievement = {
 
 export type LeaderboardEntry = {
   averagePoints: number;
+  highestScore: number;
   player: Player;
   rank: number;
   totalKniffel: number;
   wins: number;
 };
+
+export type LeaderboardSortMode = "wins" | "average" | "highscore";

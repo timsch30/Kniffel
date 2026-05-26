@@ -4,17 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import useEmblaCarousel from "embla-carousel-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { gsap } from "gsap";
-import { ArrowLeft, CheckCircle2, Dices, FilePenLine, Smartphone, Trophy, X } from "lucide-react";
+import { ArrowLeft, Dices, FilePenLine, LockKeyhole, Smartphone, X } from "lucide-react";
 
+import { Dice } from "@/components/game/Dice";
 import { ScoreCardBlock } from "@/components/game/ScoreCardBlock";
-import { ScoreEntryForm, type ScoreSaveFeedback } from "@/components/game/ScoreEntryForm";
+import { ScoreEntryForm } from "@/components/game/ScoreEntryForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import {
   canUserManageCurrentTurn,
   getFilledCategoryCount,
-  getNextPlayer,
   getPlayerScoreCard
 } from "@/game/game-state";
 import { scoreCategories } from "@/game/scorecard";
@@ -26,30 +25,96 @@ type GameTurnScreenProps = {
   enterScoreAction: (formData: FormData) => void | Promise<void>;
   onBackToLobby: () => void;
   onSaved: () => void;
+  suppressCurrentUserTurn?: boolean;
   state: GameState;
 };
 
-type TurnFeedback = {
-  bonusAwarded: boolean;
-  id: number;
-  leaderName?: string;
-  nextIsCurrentUser: boolean;
-  nextPlayerName: string;
-  roundNumber: number;
-  upperScore?: number;
+type AnimatedEntry = {
+  category: GameState["lastEntries"][number]["category"];
+  id: string;
+  playerId: string;
 };
+
+type OnlineTurnUpdatePayload = {
+  diceValues: number[];
+  heldDice: boolean[];
+  rollCount: number;
+};
+
+function LiveDiceWindow({
+  activeTurn,
+  className,
+  playerName
+}: {
+  activeTurn: NonNullable<GameState["activeTurn"]>;
+  className?: string;
+  playerName: string;
+}) {
+  const diceSlots = Array.from({ length: 5 }, (_, index) => activeTurn.diceValues[index] ?? null);
+  const rollLabel = Math.min(Math.max(activeTurn.rollCount, 0), 3);
+
+  return (
+    <section
+      className={cn(
+        "fixed inset-x-3 bottom-3 z-30 mx-auto max-w-sm overflow-hidden rounded-lg border border-brass/30 bg-[linear-gradient(145deg,rgba(6,78,59,0.94),rgba(2,23,19,0.96))] p-2.5 shadow-[0_18px_54px_rgba(0,0,0,0.34)] transition-[bottom] duration-200 sm:bottom-5 sm:backdrop-blur-xl",
+        className
+      )}
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-brass/70 to-transparent"
+      />
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase text-brass">Live-Wurf</p>
+          <h2 className="truncate text-sm font-semibold text-white">{playerName}</h2>
+        </div>
+        <Badge variant="accent">{rollLabel > 0 ? `Wurf ${rollLabel}/3` : "Bereit"}</Badge>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {diceSlots.map((value, index) => {
+          const held = activeTurn.heldDice[index] ?? false;
+
+          return (
+            <div
+              className={cn(
+                "relative rounded-xl border p-0.5 transition-colors sm:p-1",
+                held
+                  ? "border-brass/75 bg-amber-200/10"
+                  : "border-white/10 bg-white/[0.06]"
+              )}
+              key={index}
+            >
+              <Dice held={held} value={value} />
+              {held ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full border border-amber-100/30 bg-amber-300/90 text-amber-950 shadow-sm"
+                >
+                  <LockKeyhole className="h-3 w-3" />
+                </span>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 export function GameTurnScreen({
   currentUserId,
   enterScoreAction,
   onBackToLobby,
   onSaved,
+  suppressCurrentUserTurn = false,
   state
 }: GameTurnScreenProps) {
   const [entryOpen, setEntryOpen] = useState(false);
   const [rollMode, setRollMode] = useState<"real" | "online" | null>(null);
   const [showRollModePicker, setShowRollModePicker] = useState(false);
-  const [turnFeedback, setTurnFeedback] = useState<TurnFeedback | null>(null);
+  const autoOpenedTurnKeyRef = useRef<string | null>(null);
+  const [animatingEntry, setAnimatingEntry] = useState<AnimatedEntry | null>(null);
   const [viewedPlayerId, setViewedPlayerId] = useState(
     () =>
       state.currentPlayerId ??
@@ -69,17 +134,18 @@ export function GameTurnScreen({
   const previousCurrentPlayerIdRef = useRef(state.currentPlayerId);
   const previousPlayerIdsKeyRef = useRef(playerIdsKey);
   const hasInitialAutoScrollRef = useRef(false);
-  const turnBonusRef = useRef<HTMLSpanElement | null>(null);
-  const turnFeedbackTimeoutRef = useRef<number | null>(null);
+  const latestEntryTimeoutRef = useRef<number | null>(null);
+  const lastAnimatedEntryIdRef = useRef<string | null>(state.latestEntry?.id ?? null);
   const shouldReduceMotion = useReducedMotion();
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
   const viewedPlayer = state.players.find((player) => player.id === viewedPlayerId);
   const viewedPlayerScoreCard = viewedPlayer ? getPlayerScoreCard(state, viewedPlayer.id) : null;
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
   const activeScoreCard = currentPlayer ? getPlayerScoreCard(state, currentPlayer.id) : null;
-  const canManageTurn = canUserManageCurrentTurn(state, currentUserId);
+  const canManageTurn = !suppressCurrentUserTurn && canUserManageCurrentTurn(state, currentUserId);
   const filledCount = getFilledCategoryCount(activeScoreCard);
   const viewedTotal = viewedPlayerScoreCard?.total ?? 0;
+  const lastEntryByPlayerId = new Map(state.lastEntries.map((entry) => [entry.playerId, entry]));
 
   const handleEmblaSelect = useCallback(() => {
     if (!emblaApi) {
@@ -93,50 +159,73 @@ export function GameTurnScreen({
     }
   }, [emblaApi]);
 
-  function showSavedFeedback(scoreFeedback?: ScoreSaveFeedback) {
-    const nextPlayer = getNextPlayer(state);
+  const scrollToPlayer = useCallback(
+    (playerId: string) => {
+      if (!emblaApi) {
+        return;
+      }
 
-    if (turnFeedbackTimeoutRef.current !== null) {
-      window.clearTimeout(turnFeedbackTimeoutRef.current);
-    }
+      const playerIndex = playersRef.current.findIndex((player) => player.id === playerId);
 
-    setTurnFeedback({
-      bonusAwarded: scoreFeedback?.bonusAwarded ?? false,
-      id: Date.now(),
-      leaderName: state.ranking[0]?.displayName,
-      nextIsCurrentUser: nextPlayer?.userId === currentUserId,
-      nextPlayerName: nextPlayer?.displayName ?? "naechster Spieler",
-      roundNumber: state.roundNumber,
-      upperScore: scoreFeedback?.upperScore
-    });
+      if (playerIndex === -1) {
+        return;
+      }
 
-    turnFeedbackTimeoutRef.current = window.setTimeout(() => {
-      setTurnFeedback(null);
-      turnFeedbackTimeoutRef.current = null;
-    }, shouldReduceMotion ? 1000 : 1350);
-  }
+      setViewedPlayerId(playerId);
+      emblaApi.scrollTo(playerIndex, shouldReduceMotion === true);
+    },
+    [emblaApi, shouldReduceMotion]
+  );
+
+  const updateOnlineTurn = useCallback(
+    async (payload: OnlineTurnUpdatePayload) => {
+      const response = await fetch(`/api/games/${state.gameId}/turn`, {
+        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json"
+        },
+        method: "POST"
+      });
+
+      if (!response.ok) {
+        throw new Error("Live-Wurf konnte nicht gespeichert werden.");
+      }
+    },
+    [state.gameId]
+  );
 
   useEffect(() => {
-    if (!turnFeedback?.bonusAwarded || !turnBonusRef.current || shouldReduceMotion) {
+    const latestEntry = state.latestEntry;
+
+    if (!latestEntry || lastAnimatedEntryIdRef.current === latestEntry.id || !emblaApi) {
       return;
     }
 
-    gsap.fromTo(
-      turnBonusRef.current,
-      {
-        boxShadow: "0 0 0 0 rgba(244,185,66,0)",
-        scale: 0.82,
-        y: 8
+    lastAnimatedEntryIdRef.current = latestEntry.id;
+
+    if (latestEntryTimeoutRef.current !== null) {
+      window.clearTimeout(latestEntryTimeoutRef.current);
+    }
+
+    setAnimatingEntry({
+      category: latestEntry.category,
+      id: latestEntry.id,
+      playerId: latestEntry.playerId
+    });
+    scrollToPlayer(latestEntry.playerId);
+
+    latestEntryTimeoutRef.current = window.setTimeout(
+      () => {
+        setAnimatingEntry((current) => (current?.id === latestEntry.id ? null : current));
+        latestEntryTimeoutRef.current = null;
+
+        if (state.currentPlayerId) {
+          scrollToPlayer(state.currentPlayerId);
+        }
       },
-      {
-        boxShadow: "0 0 0 5px rgba(244,185,66,0.22), 0 18px 48px rgba(244,185,66,0.26)",
-        duration: 0.58,
-        ease: "back.out(2.3)",
-        scale: 1,
-        y: 0
-      }
+      shouldReduceMotion ? 350 : 2200
     );
-  }, [shouldReduceMotion, turnFeedback]);
+  }, [emblaApi, scrollToPlayer, shouldReduceMotion, state.currentPlayerId, state.latestEntry]);
 
   useEffect(() => {
     playersRef.current = state.players;
@@ -166,7 +255,7 @@ export function GameTurnScreen({
   }, [emblaApi, playerIdsKey]);
 
   useEffect(() => {
-    if (!emblaApi || !state.currentPlayerId) {
+    if (!emblaApi || !state.currentPlayerId || latestEntryTimeoutRef.current !== null) {
       return;
     }
 
@@ -181,23 +270,36 @@ export function GameTurnScreen({
     previousPlayerIdsKeyRef.current = playerIdsKey;
     hasInitialAutoScrollRef.current = true;
 
-    const currentPlayerIndex = playersRef.current.findIndex(
-      (player) => player.id === state.currentPlayerId
-    );
+    scrollToPlayer(state.currentPlayerId);
+  }, [emblaApi, playerIdsKey, scrollToPlayer, state.currentPlayerId]);
 
-    if (currentPlayerIndex === -1) {
-      return;
+  useEffect(() => {
+    if (suppressCurrentUserTurn) {
+      setEntryOpen(false);
+      setShowRollModePicker(false);
     }
-
-    setViewedPlayerId(state.currentPlayerId);
-    emblaApi.scrollTo(currentPlayerIndex, shouldReduceMotion === true);
-  }, [emblaApi, playerIdsKey, shouldReduceMotion, state.currentPlayerId]);
+  }, [suppressCurrentUserTurn]);
 
   useEffect(() => {
     if (canManageTurn && !rollMode) {
       setShowRollModePicker(true);
     }
   }, [canManageTurn, rollMode]);
+
+  useEffect(() => {
+    if (!canManageTurn || rollMode !== "online" || !state.currentPlayerId) {
+      return;
+    }
+
+    const turnKey = `${state.currentPlayerId}:${filledCount}`;
+
+    if (autoOpenedTurnKeyRef.current === turnKey) {
+      return;
+    }
+
+    autoOpenedTurnKeyRef.current = turnKey;
+    setEntryOpen(true);
+  }, [canManageTurn, filledCount, rollMode, state.currentPlayerId]);
 
   useEffect(() => {
     if (state.players.some((player) => player.id === viewedPlayerId)) {
@@ -209,14 +311,19 @@ export function GameTurnScreen({
 
   useEffect(() => {
     return () => {
-      if (turnFeedbackTimeoutRef.current !== null) {
-        window.clearTimeout(turnFeedbackTimeoutRef.current);
+      if (latestEntryTimeoutRef.current !== null) {
+        window.clearTimeout(latestEntryTimeoutRef.current);
       }
     };
   }, []);
 
   return (
-    <section className="relative -mx-4 min-h-[100svh] overflow-hidden px-4 pb-32 pt-0 text-white sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-white/10 sm:bg-white/[0.06] sm:px-5 sm:pb-32 sm:pt-0 sm:shadow-[0_28px_90px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl">
+    <section
+      className={cn(
+        "relative -mx-4 min-h-[100svh] overflow-hidden px-4 pt-0 text-white sm:mx-0 sm:min-h-[calc(100svh-2rem)] sm:rounded-lg sm:border sm:border-white/10 sm:bg-white/[0.06] sm:px-5 sm:pt-0 sm:shadow-[0_28px_90px_rgba(0,0,0,0.28)] sm:backdrop-blur-xl",
+        state.activeTurn ? "pb-48 sm:pb-48" : "pb-32 sm:pb-32"
+      )}
+    >
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(244,185,66,0.14),transparent_28rem),radial-gradient(circle_at_15%_18%,rgba(16,185,129,0.15),transparent_24rem)]"
@@ -226,7 +333,7 @@ export function GameTurnScreen({
         className="pointer-events-none absolute inset-0 -z-10 opacity-[0.06] [background-image:linear-gradient(90deg,white_1px,transparent_1px),linear-gradient(white_1px,transparent_1px)] [background-size:32px_32px]"
       />
       <div className="grid gap-4">
-        <div className="sticky top-0 z-20 -mx-4 border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:static sm:mx-0 sm:rounded-lg sm:border sm:bg-white/[0.08]">
+        <div className="sticky top-0 z-20 -mx-4 border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.2)] sm:static sm:mx-0 sm:rounded-lg sm:border sm:bg-white/[0.08] sm:backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3">
             <button
               aria-label="Zurueck zur Uebersicht"
@@ -258,6 +365,7 @@ export function GameTurnScreen({
               const active = player.id === state.currentPlayerId;
               const viewed = player.id === viewedPlayerId;
               const own = player.id === currentUserPlayer?.id;
+              const lastEntry = lastEntryByPlayerId.get(player.id);
 
               return (
                 <div
@@ -303,7 +411,7 @@ export function GameTurnScreen({
                         transition={
                           shouldReduceMotion
                             ? { duration: 0.01 }
-                            : { duration: 2.8, ease: "easeInOut", repeat: Infinity }
+                            : { duration: 2.8, ease: "easeInOut", repeat: 2 }
                         }
                       />
                     ) : null}
@@ -320,7 +428,14 @@ export function GameTurnScreen({
                         {active ? "am Zug" : own ? "du" : `${scoreCard?.total ?? 0}`}
                       </Badge>
                     </div>
-                    <ScoreCardBlock compact scoreCard={scoreCard} />
+                    <ScoreCardBlock
+                      animateEntryCategory={
+                        animatingEntry?.playerId === player.id ? animatingEntry.category : null
+                      }
+                      compact
+                      lastEntryCategory={lastEntry?.category ?? null}
+                      scoreCard={scoreCard}
+                    />
                   </motion.article>
                 </div>
               );
@@ -370,7 +485,7 @@ export function GameTurnScreen({
       </div>
 
       {canManageTurn && activeScoreCard ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-emerald-50/60">
@@ -389,68 +504,16 @@ export function GameTurnScreen({
         </div>
       ) : null}
 
-      <AnimatePresence>
-        {turnFeedback ? (
-          <motion.div
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            aria-live="polite"
-            className="pointer-events-none fixed inset-0 z-[95] grid place-items-center p-4"
-            exit={{ opacity: 0, y: shouldReduceMotion ? 0 : -8, scale: 0.98 }}
-            initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 10, scale: 0.98 }}
-            key={turnFeedback.id}
-            role="status"
-            transition={shouldReduceMotion ? { duration: 0.01 } : { duration: 0.2, ease: "easeOut" }}
-          >
-            <div className="relative w-full max-w-sm overflow-hidden rounded-lg border border-brass/30 bg-[linear-gradient(145deg,rgba(6,78,59,0.96),rgba(2,23,19,0.96))] p-4 text-white shadow-2xl">
-              <motion.span
-                aria-hidden="true"
-                animate={shouldReduceMotion ? { opacity: 0.18 } : { opacity: [0.12, 0.28, 0.12] }}
-                className="absolute inset-x-8 top-0 h-px bg-brass"
-                transition={
-                  shouldReduceMotion ? { duration: 0.01 } : { duration: 1.2, repeat: Infinity }
-                }
-              />
-              <div className="flex items-start gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-emerald-300/20 bg-emerald-300/10 text-emerald-100">
-                  <CheckCircle2 aria-hidden="true" className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">Score gespeichert</p>
-                  <p className="mt-1 text-sm text-emerald-50/75">
-                    {turnFeedback.bonusAwarded
-                      ? `Oberer Bonus erreicht. Weiter: ${turnFeedback.nextPlayerName}`
-                      : turnFeedback.nextIsCurrentUser
-                        ? "Du bist wieder dran."
-                        : `Weiter: ${turnFeedback.nextPlayerName}`}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-emerald-50/70">
-                    <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1">
-                      Runde {turnFeedback.roundNumber}
-                    </span>
-                    {turnFeedback.bonusAwarded ? (
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full border border-brass/35 bg-brass px-2 py-1 text-emerald-950"
-                        ref={turnBonusRef}
-                      >
-                        +35 Bonus
-                        {turnFeedback.upperScore ? (
-                          <span className="opacity-75">({turnFeedback.upperScore} oben)</span>
-                        ) : null}
-                      </span>
-                    ) : null}
-                    {turnFeedback.leaderName ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-brass/20 bg-brass/[0.12] px-2 py-1 text-amber-100">
-                        <Trophy aria-hidden="true" className="h-3.5 w-3.5" />
-                        {turnFeedback.leaderName}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+      {state.activeTurn ? (
+        <LiveDiceWindow
+          activeTurn={state.activeTurn}
+          className={canManageTurn && !entryOpen ? "bottom-24 sm:bottom-24" : undefined}
+          playerName={
+            state.players.find((player) => player.id === state.activeTurn?.playerId)
+              ?.displayName ?? "Aktueller Spieler"
+          }
+        />
+      ) : null}
 
       <AnimatePresence>
         {entryOpen && canManageTurn && activeScoreCard ? (
@@ -465,7 +528,7 @@ export function GameTurnScreen({
               aria-hidden="true"
               className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,rgba(244,185,66,0.13),transparent_26rem),radial-gradient(circle_at_15%_18%,rgba(16,185,129,0.14),transparent_24rem),linear-gradient(180deg,#064e3b,#021713)]"
             />
-            <div className="sticky top-0 z-[70] border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.26)] backdrop-blur-xl">
+            <div className="sticky top-0 z-[70] border-b border-white/10 bg-emerald-950/90 px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.26)] sm:backdrop-blur-xl">
               <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-bold uppercase text-brass">
@@ -490,8 +553,8 @@ export function GameTurnScreen({
               <ScoreEntryForm
                 action={enterScoreAction}
                 onlineRollMode={rollMode === "online"}
-                onSaved={(scoreFeedback) => {
-                  showSavedFeedback(scoreFeedback);
+                onOnlineTurnUpdate={rollMode === "online" ? updateOnlineTurn : undefined}
+                onSaved={() => {
                   setEntryOpen(false);
                   onSaved();
                 }}
@@ -506,13 +569,13 @@ export function GameTurnScreen({
         {showRollModePicker && canManageTurn ? (
           <motion.div
             animate={{ opacity: 1 }}
-            className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 sm:backdrop-blur-sm"
             exit={{ opacity: 0 }}
             initial={{ opacity: 0 }}
           >
             <div className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
               <button
-                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-5 text-center text-emerald-50 shadow-xl backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12]"
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-white/10 bg-white/[0.08] p-5 text-center text-emerald-50 shadow-xl transition-all hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12] sm:backdrop-blur-xl"
                 onClick={() => {
                   setRollMode("real");
                   setShowRollModePicker(false);
@@ -523,7 +586,7 @@ export function GameTurnScreen({
                 <span className="text-lg font-semibold">Echte Wuerfel</span>
               </button>
               <button
-                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-brass/35 bg-[linear-gradient(145deg,rgba(244,185,66,0.18),rgba(16,185,129,0.12))] p-5 text-center text-white shadow-xl backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-brass/60 hover:bg-brass/15"
+                className="grid min-h-48 place-content-center gap-3 rounded-lg border border-brass/35 bg-[linear-gradient(145deg,rgba(244,185,66,0.18),rgba(16,185,129,0.12))] p-5 text-center text-white shadow-xl transition-all hover:-translate-y-0.5 hover:border-brass/60 hover:bg-brass/15 sm:backdrop-blur-xl"
                 onClick={() => {
                   setRollMode("online");
                   setShowRollModePicker(false);
@@ -538,6 +601,7 @@ export function GameTurnScreen({
           </motion.div>
         ) : null}
       </AnimatePresence>
+
     </section>
   );
 }

@@ -31,7 +31,7 @@ import {
   calculatePlayerStats,
   calculateRivalStats
 } from "@/social/stats";
-import type { Friend, Player, PlayerId } from "@/social/types";
+import type { LeaderboardSortMode, Player, PlayerId } from "@/social/types";
 
 type SocialDashboardProps = {
   acceptFriendRequestAction: (requestId: string) => void | Promise<void>;
@@ -59,19 +59,6 @@ const tabs: { icon: typeof UsersRound; id: TabId; label: string }[] = [
   { icon: UserRound, id: "profile", label: "Profil" }
 ];
 
-  const fallbackFriend: Friend = {
-  color: "bg-slate-600 text-white",
-  favoriteCategory: "Offen",
-  inGame: false,
-  id: "fallback",
-  initials: "--",
-  isOnline: false,
-  lastActiveAt: new Date(0).toISOString(),
-  lastSeenAt: null,
-  name: "Offen",
-  relationshipStatus: "accepted"
-};
-
 export function SocialDashboard({
   acceptFriendRequestAction,
   declineFriendRequestAction,
@@ -83,6 +70,7 @@ export function SocialDashboard({
   userName
 }: SocialDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabId>("friends");
+  const [leaderboardSort, setLeaderboardSort] = useState<LeaderboardSortMode>("wins");
   const [selectedFriendId, setSelectedFriendId] = useState<PlayerId>(
     socialState.friends[0]?.id ?? ""
   );
@@ -98,20 +86,20 @@ export function SocialDashboard({
   const friends = socialState.friends;
   const games = socialState.games;
   const players = useMemo<Player[]>(() => [user, ...friends], [friends, user]);
-  const selectedFriend =
-    friends.find((friend) => friend.id === selectedFriendId) ??
-    friends[0] ??
-    fallbackFriend;
+  const selectedFriend = friends.find((friend) => friend.id === selectedFriendId) ?? friends[0];
   const userStats = useMemo(() => calculatePlayerStats(games, user.id), [games, user.id]);
   const selectedFriendStats = useMemo(
-    () => calculatePlayerStats(games, selectedFriend.id),
-    [games, selectedFriend.id]
+    () => (selectedFriend ? calculatePlayerStats(games, selectedFriend.id) : null),
+    [games, selectedFriend]
   );
   const headToHead = useMemo(
-    () => calculateHeadToHeadStats(games, user, selectedFriend),
+    () => (selectedFriend ? calculateHeadToHeadStats(games, user, selectedFriend) : null),
     [games, selectedFriend, user]
   );
-  const leaderboard = useMemo(() => calculateLeaderboard(players, games), [games, players]);
+  const leaderboard = useMemo(
+    () => calculateLeaderboard(players, games, leaderboardSort),
+    [games, leaderboardSort, players]
+  );
   const achievements = useMemo(() => calculateAchievements(userStats), [userStats]);
   const rivals = useMemo(() => calculateRivalStats(games, user, friends), [friends, games, user]);
 
@@ -194,10 +182,21 @@ export function SocialDashboard({
             selectedFriendId={selectedFriend?.id ?? ""}
             sendFriendRequestAction={sendFriendRequestAction}
           />
-          <div className="grid gap-4">
-            <PlayerProfileCard label="Freundesprofil" player={selectedFriend} stats={selectedFriendStats} />
-            <HeadToHeadCard friend={selectedFriend} stats={headToHead} user={user} />
-          </div>
+          {selectedFriend && selectedFriendStats && headToHead ? (
+            <div className="grid gap-4">
+              <PlayerProfileCard label="Freundesprofil" player={selectedFriend} stats={selectedFriendStats} />
+              <HeadToHeadCard friend={selectedFriend} stats={headToHead} user={user} />
+            </div>
+          ) : (
+            <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+              <h2 className="text-lg font-semibold tracking-tight text-white">
+                Keine Freundesstats
+              </h2>
+              <p className="mt-1 text-sm text-emerald-50/70">
+                Fuege einen Freund hinzu, dann erscheinen hier Profil und Direktvergleich.
+              </p>
+            </Card>
+          )}
         </motion.section>
       ) : null}
 
@@ -208,7 +207,11 @@ export function SocialDashboard({
           initial={{ opacity: 0, y: 8 }}
           transition={{ duration: 0.2 }}
         >
-          <Leaderboard entries={leaderboard} />
+          <Leaderboard
+            entries={leaderboard}
+            onSortModeChange={setLeaderboardSort}
+            sortMode={leaderboardSort}
+          />
           <Card className="!border-white/10 !bg-white/[0.09] p-4 text-white shadow-[0_18px_58px_rgba(0,0,0,0.2)] backdrop-blur-xl">
             <h2 className="text-lg font-semibold tracking-tight text-white">
               Rivalen Radar

@@ -37,6 +37,28 @@ export type GameStateLastAction = {
   displayName: string;
 } | null;
 
+export type GameStateActiveTurn = {
+  diceValues: number[];
+  heldDice: boolean[];
+  id: string;
+  playerId: string;
+  rollCount: number;
+  updatedAt: string;
+} | null;
+
+export type GameStateEntryMode = "manual" | "online" | "real";
+
+export type GameStateLastEntry = {
+  category: ScoreCategory;
+  createdAt: string;
+  diceValues: number[];
+  displayName: string;
+  entryMode: GameStateEntryMode;
+  id: string;
+  playerId: string;
+  points: number;
+};
+
 export type GameInviteFriend = {
   id: string;
   invitationId: string | null;
@@ -45,12 +67,15 @@ export type GameInviteFriend = {
 };
 
 export type GameState = {
+  activeTurn: GameStateActiveTurn;
   currentPlayerId: string | null;
   currentPlayerName: string | null;
   friendInvites: GameInviteFriend[];
   gameId: string;
   inviteCode: string;
   lastAction: GameStateLastAction;
+  lastEntries: GameStateLastEntry[];
+  latestEntry: GameStateLastEntry | null;
   name: string;
   ownerId: string;
   players: GameStatePlayer[];
@@ -58,5 +83,6 @@ export type GameState = {
   roundNumber: number;
   scoreCards: GameStateScoreCard[];
   status: string;
+  updatedAt: string;
   winner: GameStateWinner;
 };

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 
+import { useVisiblePolling } from "@/components/hooks/useVisiblePolling";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
 
-const FRIEND_PRESENCE_INTERVAL_MS = 10_000;
+const FRIEND_PRESENCE_INTERVAL_MS = 20_000;
 const TOAST_DURATION_MS = 3_000;
 
 type OnlineFriend = {
@@ -38,9 +39,7 @@ export function PresenceNotifications() {
   const { notify } = useNotifications();
   const knownOnlineIdsRef = useRef<Set<string> | null>(null);
 
-  useEffect(() => {
-    let active = true;
-
+  const checkFriendsPresence = useCallback(async () => {
     function showToast(friend: OnlineFriend) {
       const toast: PresenceToast = {
         id: `${friend.id}-${friend.lastSeenAt}`,
@@ -56,63 +55,41 @@ export function PresenceNotifications() {
       });
     }
 
-    async function checkFriendsPresence() {
-      if (!active || document.visibilityState !== "visible") {
+    try {
+      const response = await fetch("/api/presence/friends", {
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
         return;
       }
 
-      try {
-        const response = await fetch("/api/presence/friends", {
-          cache: "no-store"
-        });
+      const data = (await response.json()) as PresenceFriendsResponse;
+      dispatchFriendsPresence(data.friends);
 
-        if (!response.ok) {
-          return;
-        }
+      const nextOnlineIds = new Set(data.friends.map((friend) => friend.id));
+      const knownOnlineIds = knownOnlineIdsRef.current;
 
-        const data = (await response.json()) as PresenceFriendsResponse;
-        dispatchFriendsPresence(data.friends);
-
-        const nextOnlineIds = new Set(data.friends.map((friend) => friend.id));
-        const knownOnlineIds = knownOnlineIdsRef.current;
-
-        if (!knownOnlineIds) {
-          knownOnlineIdsRef.current = nextOnlineIds;
-          return;
-        }
-
-        const newOnlineFriend = data.friends.find((friend) => !knownOnlineIds.has(friend.id));
-
+      if (!knownOnlineIds) {
         knownOnlineIdsRef.current = nextOnlineIds;
-
-        if (newOnlineFriend) {
-          showToast(newOnlineFriend);
-        }
-      } catch {
-        // Presence notifications are best-effort.
+        return;
       }
-    }
 
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        void checkFriendsPresence();
+      const newOnlineFriend = data.friends.find((friend) => !knownOnlineIds.has(friend.id));
+
+      knownOnlineIdsRef.current = nextOnlineIds;
+
+      if (newOnlineFriend) {
+        showToast(newOnlineFriend);
       }
+    } catch {
+      // Presence notifications are best-effort.
     }
-
-    void checkFriendsPresence();
-
-    const intervalId = window.setInterval(() => {
-      void checkFriendsPresence();
-    }, FRIEND_PRESENCE_INTERVAL_MS);
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      active = false;
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
   }, [notify]);
+
+  useVisiblePolling(checkFriendsPresence, {
+    intervalMs: FRIEND_PRESENCE_INTERVAL_MS
+  });
 
   return null;
 }

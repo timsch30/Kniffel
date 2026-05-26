@@ -491,7 +491,7 @@ export function GameLobby({
             transition={
               shouldReduceMotion
                 ? { duration: 0.01 }
-                : { duration: 3.6, ease: "easeInOut", repeat: Infinity }
+                : { duration: 3.6, ease: "easeInOut", repeat: 1 }
             }
           />
           <div className="relative grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(18rem,1.1fr)] lg:items-start">
@@ -582,7 +582,7 @@ export function GameLobby({
                               transition={{
                                 duration: 2.4,
                                 ease: "easeInOut",
-                                repeat: Infinity,
+                                repeat: 2,
                                 repeatDelay: 0.8
                               }}
                             >
@@ -1073,7 +1073,7 @@ export function GameLobby({
       ) : null}
 
       {canManageTurn ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] sm:hidden">
           <div className="mx-auto flex max-w-xl items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-brass">

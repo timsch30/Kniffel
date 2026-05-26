@@ -38,6 +38,16 @@ function readString(formData: FormData, name: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readEntryMode(formData: FormData, mode: string): "manual" | "online" | "real" {
+  if (mode === "manual") {
+    return "manual";
+  }
+
+  const entryMode = readString(formData, "entryMode");
+
+  return entryMode === "online" || entryMode === "real" ? entryMode : "real";
+}
+
 function redirectWithError(path: string, error: string): never {
   const separator = path.includes("?") ? "&" : "?";
 
@@ -79,6 +89,17 @@ function orderedFriendshipPair(firstUserId: string, secondUserId: string) {
   return firstUserId < secondUserId
     ? { friendId: secondUserId, userId: firstUserId }
     : { friendId: firstUserId, userId: secondUserId };
+}
+
+async function touchGame(tx: Prisma.TransactionClient, gameId: string) {
+  await tx.game.update({
+    data: {
+      updatedAt: new Date()
+    },
+    where: {
+      id: gameId
+    }
+  });
 }
 
 async function addUserToGame(
@@ -124,6 +145,8 @@ async function addUserToGame(
       playerId: gamePlayer.id
     }
   });
+
+  await touchGame(tx, gameId);
 }
 
 export async function createGameAction(formData: FormData): Promise<void> {
@@ -321,6 +344,8 @@ export async function inviteFriendToGameAction(formData: FormData): Promise<void
           }
         }
       });
+
+      await touchGame(tx, gameId);
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
@@ -392,6 +417,8 @@ export async function addGuestPlayerAction(gameId: string): Promise<void> {
           playerId: gamePlayer.id
         }
       });
+
+      await touchGame(tx, game.id);
     });
   } catch (error) {
     const message =
@@ -533,6 +560,8 @@ export async function renamePlayerAction(
           id: playerId
         }
       });
+
+      await touchGame(tx, gameId);
     });
   } catch (error) {
     const message =
@@ -615,6 +644,8 @@ export async function removeGuestPlayerAction(gameId: string, playerId: string):
           }
         });
       }
+
+      await touchGame(tx, game.id);
     });
   } catch (error) {
     const message =
@@ -790,6 +821,8 @@ export async function leaveGameAction(gameId: string): Promise<void> {
             id: game.id
           }
         });
+      } else {
+        await touchGame(tx, game.id);
       }
     });
   } catch (error) {
@@ -1042,6 +1075,7 @@ export async function reorderPlayersAction(gameId: string, formData: FormData): 
       }
 
       await applyPlayerOrder(tx, game.players, playerOrder);
+      await touchGame(tx, game.id);
     });
   } catch (error) {
     const message =
@@ -1133,6 +1167,8 @@ export async function movePlayerAction(
           id: currentPlayer.id
         }
       });
+
+      await touchGame(tx, game.id);
     });
   } catch (error) {
     const message =
@@ -1483,6 +1519,7 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
   const errorPath = `/games/${gameId}`;
   const categoryValue = readString(formData, "category");
   const mode = readString(formData, "mode");
+  const entryMode = readEntryMode(formData, mode);
   let diceValues: number[] = [];
   let manualPoints: number | null = null;
 
@@ -1586,14 +1623,45 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
         }
       });
 
-      await tx.turn.create({
-        data: {
-          diceValues: mode === "dice" ? diceValues : [],
-          gameId: game.id,
-          playerId: currentPlayer.id,
-          status: "FINISHED"
+      const turnData = {
+        diceValues: mode === "dice" ? diceValues : [],
+        entryCategory: categoryValue,
+        entryMode,
+        entryPoints: points,
+        gameId: game.id,
+        playerId: currentPlayer.id,
+        status: "FINISHED" as const
+      };
+
+      if (entryMode === "online") {
+        const activeTurn = await tx.turn.findFirst({
+          orderBy: {
+            updatedAt: "desc"
+          },
+          where: {
+            gameId: game.id,
+            playerId: currentPlayer.id,
+            status: "ACTIVE"
+          }
+        });
+
+        if (activeTurn) {
+          await tx.turn.update({
+            data: turnData,
+            where: {
+              id: activeTurn.id
+            }
+          });
+        } else {
+          await tx.turn.create({
+            data: turnData
+          });
         }
-      });
+      } else {
+        await tx.turn.create({
+          data: turnData
+        });
+      }
 
       const scoreCardsAfterUpdate = game.scoreCards.map((card) =>
         card.id === updatedScoreCard.id ? updatedScoreCard : card
