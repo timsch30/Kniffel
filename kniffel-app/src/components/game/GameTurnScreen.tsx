@@ -102,6 +102,33 @@ function LiveDiceWindow({
   );
 }
 
+function LatestEntryWindow({
+  latestEntry
+}: {
+  latestEntry: NonNullable<GameState["latestEntry"]>;
+}) {
+  const diceSlots = Array.from({ length: 5 }, (_, index) => latestEntry.diceValues[index] ?? null);
+
+  return (
+    <section className="fixed inset-x-3 bottom-3 z-30 mx-auto max-w-sm overflow-hidden rounded-lg border border-brass/30 bg-[linear-gradient(145deg,rgba(6,78,59,0.94),rgba(2,23,19,0.96))] p-2.5 shadow-[0_18px_54px_rgba(0,0,0,0.34)] sm:bottom-5 sm:backdrop-blur-xl">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase text-brass">Zuletzt eingetragen</p>
+          <h2 className="truncate text-sm font-semibold text-white">{latestEntry.displayName}</h2>
+        </div>
+        <Badge variant="accent">{latestEntry.category}</Badge>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {diceSlots.map((value, index) => (
+          <div className="rounded-xl border border-white/10 bg-white/[0.06] p-0.5 sm:p-1" key={index}>
+            <Dice held={false} value={value} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function GameTurnScreen({
   currentUserId,
   enterScoreAction,
@@ -113,7 +140,6 @@ export function GameTurnScreen({
   const [entryOpen, setEntryOpen] = useState(false);
   const [rollMode, setRollMode] = useState<"real" | "online" | null>(null);
   const [showRollModePicker, setShowRollModePicker] = useState(false);
-  const autoOpenedTurnKeyRef = useRef<string | null>(null);
   const [animatingEntry, setAnimatingEntry] = useState<AnimatedEntry | null>(null);
   const [viewedPlayerId, setViewedPlayerId] = useState(
     () =>
@@ -285,21 +311,6 @@ export function GameTurnScreen({
       setShowRollModePicker(true);
     }
   }, [canManageTurn, rollMode]);
-
-  useEffect(() => {
-    if (!canManageTurn || rollMode !== "online" || !state.currentPlayerId) {
-      return;
-    }
-
-    const turnKey = `${state.currentPlayerId}:${filledCount}`;
-
-    if (autoOpenedTurnKeyRef.current === turnKey) {
-      return;
-    }
-
-    autoOpenedTurnKeyRef.current = turnKey;
-    setEntryOpen(true);
-  }, [canManageTurn, filledCount, rollMode, state.currentPlayerId]);
 
   useEffect(() => {
     if (state.players.some((player) => player.id === viewedPlayerId)) {
@@ -513,6 +524,10 @@ export function GameTurnScreen({
               ?.displayName ?? "Aktueller Spieler"
           }
         />
+      ) : null}
+
+      {!state.activeTurn && state.latestEntry && (suppressCurrentUserTurn || !canManageTurn) ? (
+        <LatestEntryWindow latestEntry={state.latestEntry} />
       ) : null}
 
       <AnimatePresence>
