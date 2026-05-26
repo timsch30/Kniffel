@@ -45,6 +45,7 @@ import { isCurrentUserWinner } from "@/game/victory-celebration";
 import { cn } from "@/lib/cn";
 
 type GameLobbyProps = {
+  addBotPlayerAction: () => void | Promise<void>;
   addGuestPlayerAction: () => void | Promise<void>;
   currentUserId: string;
   inviteFriendToGameAction: (formData: FormData) => void | Promise<void>;
@@ -256,7 +257,7 @@ function LobbyPlayerReorderItem({
         <div className="min-w-0 grid gap-1">
           <p className="truncate text-[0.68rem] font-semibold text-emerald-50/55">
             Position {position}
-            {player.userId === null ? " / Gast" : own ? " / du" : ""}
+            {player.isBot ? " / Bot" : player.userId === null ? " / Gast" : own ? " / du" : ""}
           </p>
           {editableGuest ? (
             <input
@@ -295,6 +296,7 @@ function LobbyPlayerReorderItem({
 }
 
 export function GameLobby({
+  addBotPlayerAction,
   addGuestPlayerAction,
   currentUserId,
   inviteFriendToGameAction,
@@ -761,16 +763,28 @@ export function GameLobby({
               )}
 
               {isOwner ? (
-                <form action={addGuestPlayerAction}>
-                  <SubmitButton
-                    className="min-h-10 w-fit justify-self-start border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-emerald-50/75 shadow-none hover:bg-white/[0.1]"
-                    pendingLabel="Fuegt hinzu..."
-                    variant="secondary"
-                  >
-                    <UserPlus aria-hidden="true" className="h-4 w-4" />
-                    Gastspieler
-                  </SubmitButton>
-                </form>
+                <div className="flex flex-wrap gap-2">
+                  <form action={addGuestPlayerAction}>
+                    <SubmitButton
+                      className="min-h-10 w-fit justify-self-start border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-emerald-50/75 shadow-none hover:bg-white/[0.1]"
+                      pendingLabel="Fuegt hinzu..."
+                      variant="secondary"
+                    >
+                      <UserPlus aria-hidden="true" className="h-4 w-4" />
+                      Gast hinzufuegen
+                    </SubmitButton>
+                  </form>
+                  <form action={addBotPlayerAction}>
+                    <SubmitButton
+                      className="min-h-10 w-fit justify-self-start border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-emerald-50/75 shadow-none hover:bg-white/[0.1]"
+                      pendingLabel="Fuegt Bot hinzu..."
+                      variant="secondary"
+                    >
+                      <UserPlus aria-hidden="true" className="h-4 w-4" />
+                      Bot hinzufuegen
+                    </SubmitButton>
+                  </form>
+                </div>
               ) : null}
 
               <div className="grid gap-2">

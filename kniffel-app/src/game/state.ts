@@ -5,6 +5,7 @@ export type GameStatePlayer = {
   id: string;
   position: number;
   userId: string | null;
+  isBot: boolean;
 };
 
 export type GameStateScoreCard = Omit<ScoreCard, "struckCategories"> & {

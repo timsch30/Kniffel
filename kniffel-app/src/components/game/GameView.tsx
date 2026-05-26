@@ -18,6 +18,7 @@ const ACTIVE_GAME_POLL_INTERVAL_MS = 3000;
 const IDLE_GAME_POLL_INTERVAL_MS = 5000;
 
 type GameViewProps = {
+  addBotPlayerAction: () => void | Promise<void>;
   addGuestPlayerAction: () => void | Promise<void>;
   currentUserId: string;
   enterScoreAction: (formData: FormData) => void | Promise<void>;
@@ -45,6 +46,7 @@ function wait(ms: number): Promise<void> {
 }
 
 export function GameView({
+  addBotPlayerAction,
   addGuestPlayerAction,
   currentUserId,
   enterScoreAction,
@@ -287,6 +289,7 @@ export function GameView({
         />
       ) : (
         <GameLobby
+          addBotPlayerAction={addBotPlayerAction}
           addGuestPlayerAction={addGuestPlayerAction}
           currentUserId={currentUserId}
           inviteLink={inviteLink}

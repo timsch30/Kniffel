@@ -121,6 +121,7 @@ export async function getGameState(
         select: {
           displayName: true,
           id: true,
+          isBot: true,
           position: true,
           userId: true
         }

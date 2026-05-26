@@ -6,6 +6,7 @@ import { GameView } from "@/components/game/GameView";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { requireCurrentUser } from "@/server/auth/session";
 import {
+  addBotPlayerAction,
   addGuestPlayerAction,
   enterScoreAction,
   inviteFriendToGameAction,
@@ -49,6 +50,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
   const boundRestartGameAction = restartGameAction.bind(null, initialState.gameId);
   const boundSimulateGameAction = simulateGameAction.bind(null, initialState.gameId);
   const boundAddGuestPlayerAction = addGuestPlayerAction.bind(null, initialState.gameId);
+  const boundAddBotPlayerAction = addBotPlayerAction.bind(null, initialState.gameId);
   const boundRemoveGuestPlayerAction = removeGuestPlayerAction.bind(null, initialState.gameId);
 
   return (
@@ -56,6 +58,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
       <DashboardBackdrop />
       <PageContainer className="grid gap-4 pb-20 pt-0 sm:gap-5 sm:pt-0" size="xl">
         <GameView
+          addBotPlayerAction={boundAddBotPlayerAction}
           addGuestPlayerAction={boundAddGuestPlayerAction}
           currentUserId={user.id}
           enterScoreAction={boundEnterScoreAction}
