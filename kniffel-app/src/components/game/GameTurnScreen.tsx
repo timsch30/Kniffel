@@ -174,6 +174,7 @@ export function GameTurnScreen({
   const hasInitialAutoScrollRef = useRef(false);
   const latestEntryTimeoutRef = useRef<number | null>(null);
   const lastAnimatedEntryIdRef = useRef<string | null>(state.latestEntry?.id ?? null);
+  const lastReplayedBotEntryIdRef = useRef<string | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId);
   const viewedPlayer = state.players.find((player) => player.id === viewedPlayerId);
@@ -324,6 +325,11 @@ export function GameTurnScreen({
     if (!latestPlayer?.isBot) {
       return;
     }
+    if (lastReplayedBotEntryIdRef.current === latestEntry.id) {
+      return;
+    }
+
+    lastReplayedBotEntryIdRef.current = latestEntry.id;
 
     let cancelled = false;
     const baseName = latestPlayer.displayName;
