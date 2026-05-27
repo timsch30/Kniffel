@@ -183,6 +183,8 @@ export function GameTurnScreen({
   const activeScoreCard = currentPlayer ? getPlayerScoreCard(state, currentPlayer.id) : null;
   const canManageTurn = !suppressCurrentUserTurn && canUserManageCurrentTurn(state, currentUserId);
   const canManageTurnEffective = canManageTurn && !botReplay;
+  const currentTurnIsBot = Boolean(currentPlayer?.isBot);
+  const canShowEntryControls = canManageTurnEffective && !currentTurnIsBot;
   const filledCount = getFilledCategoryCount(activeScoreCard);
   const viewedTotal = viewedPlayerScoreCard?.total ?? 0;
   const lastEntryByPlayerId = new Map(state.lastEntries.map((entry) => [entry.playerId, entry]));
@@ -391,10 +393,17 @@ export function GameTurnScreen({
   }, [suppressCurrentUserTurn]);
 
   useEffect(() => {
-    if (canManageTurnEffective && !rollMode) {
+    if (currentTurnIsBot) {
+      setEntryOpen(false);
+      setShowRollModePicker(false);
+    }
+  }, [currentTurnIsBot]);
+
+  useEffect(() => {
+    if (canShowEntryControls && !rollMode) {
       setShowRollModePicker(true);
     }
-  }, [canManageTurnEffective, rollMode]);
+  }, [canShowEntryControls, rollMode]);
 
   useEffect(() => {
     if (state.players.some((player) => player.id === viewedPlayerId)) {
@@ -579,7 +588,7 @@ export function GameTurnScreen({
         </div>
       </div>
 
-      {canManageTurnEffective && activeScoreCard ? (
+      {canShowEntryControls && activeScoreCard ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -602,7 +611,7 @@ export function GameTurnScreen({
       {state.activeTurn ? (
         <LiveDiceWindow
           activeTurn={state.activeTurn}
-          className={canManageTurnEffective && !entryOpen ? "bottom-24 sm:bottom-24" : undefined}
+          className={canShowEntryControls && !entryOpen ? "bottom-24 sm:bottom-24" : undefined}
           playerName={
             state.players.find((player) => player.id === state.activeTurn?.playerId)
               ?.displayName ?? "Aktueller Spieler"
@@ -629,7 +638,7 @@ export function GameTurnScreen({
       ) : null}
 
       <AnimatePresence>
-        {entryOpen && canManageTurnEffective && activeScoreCard ? (
+        {entryOpen && canShowEntryControls && activeScoreCard ? (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             className="fixed inset-0 z-[60] overflow-y-auto bg-emerald-950 text-white"
@@ -679,7 +688,7 @@ export function GameTurnScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {showRollModePicker && canManageTurnEffective ? (
+        {showRollModePicker && canShowEntryControls ? (
           <motion.div
             animate={{ opacity: 1 }}
             className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 sm:backdrop-blur-sm"
