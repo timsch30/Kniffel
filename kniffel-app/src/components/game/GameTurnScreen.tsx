@@ -41,6 +41,17 @@ type OnlineTurnUpdatePayload = {
   rollCount: number;
 };
 
+type BotReplayState = {
+  diceValues: number[];
+  heldDice: boolean[];
+  playerName: string;
+  rollCount: number;
+};
+
+function randomDiceValues() {
+  return Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1).sort((a, b) => a - b);
+}
+
 function LiveDiceWindow({
   activeTurn,
   className,
@@ -102,6 +113,33 @@ function LiveDiceWindow({
   );
 }
 
+function LatestEntryWindow({
+  latestEntry
+}: {
+  latestEntry: NonNullable<GameState["latestEntry"]>;
+}) {
+  const diceSlots = Array.from({ length: 5 }, (_, index) => latestEntry.diceValues[index] ?? null);
+
+  return (
+    <section className="fixed inset-x-3 bottom-3 z-30 mx-auto max-w-sm overflow-hidden rounded-lg border border-brass/30 bg-[linear-gradient(145deg,rgba(6,78,59,0.94),rgba(2,23,19,0.96))] p-2.5 shadow-[0_18px_54px_rgba(0,0,0,0.34)] sm:bottom-5 sm:backdrop-blur-xl">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase text-brass">Zuletzt eingetragen</p>
+          <h2 className="truncate text-sm font-semibold text-white">{latestEntry.displayName}</h2>
+        </div>
+        <Badge variant="accent">{latestEntry.category}</Badge>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {diceSlots.map((value, index) => (
+          <div className="rounded-xl border border-white/10 bg-white/[0.06] p-0.5 sm:p-1" key={index}>
+            <Dice held={false} value={value} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function GameTurnScreen({
   currentUserId,
   enterScoreAction,
@@ -113,7 +151,7 @@ export function GameTurnScreen({
   const [entryOpen, setEntryOpen] = useState(false);
   const [rollMode, setRollMode] = useState<"real" | "online" | null>(null);
   const [showRollModePicker, setShowRollModePicker] = useState(false);
-  const autoOpenedTurnKeyRef = useRef<string | null>(null);
+  const [botReplay, setBotReplay] = useState<BotReplayState | null>(null);
   const [animatingEntry, setAnimatingEntry] = useState<AnimatedEntry | null>(null);
   const [viewedPlayerId, setViewedPlayerId] = useState(
     () =>
@@ -143,6 +181,8 @@ export function GameTurnScreen({
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
   const activeScoreCard = currentPlayer ? getPlayerScoreCard(state, currentPlayer.id) : null;
   const canManageTurn = !suppressCurrentUserTurn && canUserManageCurrentTurn(state, currentUserId);
+  const shouldHideEntryForBotTurn = currentPlayer?.isBot === true;
+  const canManageTurnEffective = canManageTurn && !botReplay && !shouldHideEntryForBotTurn;
   const filledCount = getFilledCategoryCount(activeScoreCard);
   const viewedTotal = viewedPlayerScoreCard?.total ?? 0;
   const lastEntryByPlayerId = new Map(state.lastEntries.map((entry) => [entry.playerId, entry]));
@@ -274,6 +314,71 @@ export function GameTurnScreen({
   }, [emblaApi, playerIdsKey, scrollToPlayer, state.currentPlayerId]);
 
   useEffect(() => {
+    const latestEntry = state.latestEntry;
+
+    if (!latestEntry) {
+      return;
+    }
+
+    const latestPlayer = state.players.find((player) => player.id === latestEntry.playerId);
+
+    if (!latestPlayer?.isBot) {
+      return;
+    }
+
+    let cancelled = false;
+    const baseName = latestPlayer.displayName;
+
+    setEntryOpen(false);
+    setShowRollModePicker(false);
+    setBotReplay({
+      diceValues: randomDiceValues(),
+      heldDice: [false, false, false, false, false],
+      playerName: baseName,
+      rollCount: 1
+    });
+
+    const firstTimeout = window.setTimeout(() => {
+      if (cancelled) {
+        return;
+      }
+
+      setBotReplay({
+        diceValues: randomDiceValues(),
+        heldDice: [true, false, false, true, false],
+        playerName: baseName,
+        rollCount: 2
+      });
+    }, 1100);
+
+    const secondTimeout = window.setTimeout(() => {
+      if (cancelled) {
+        return;
+      }
+
+      setBotReplay({
+        diceValues: latestEntry.diceValues.length === 5 ? latestEntry.diceValues : randomDiceValues(),
+        heldDice: [true, true, true, true, true],
+        playerName: baseName,
+        rollCount: 3
+      });
+    }, 2200);
+
+    const finalTimeout = window.setTimeout(() => {
+      if (!cancelled) {
+        setBotReplay(null);
+      }
+    }, 3400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(firstTimeout);
+      window.clearTimeout(secondTimeout);
+      window.clearTimeout(finalTimeout);
+    };
+  }, [state.latestEntry, state.players]);
+
+  useEffect(() => {
     if (suppressCurrentUserTurn) {
       setEntryOpen(false);
       setShowRollModePicker(false);
@@ -281,25 +386,10 @@ export function GameTurnScreen({
   }, [suppressCurrentUserTurn]);
 
   useEffect(() => {
-    if (canManageTurn && !rollMode) {
+    if (canManageTurnEffective && !rollMode) {
       setShowRollModePicker(true);
     }
-  }, [canManageTurn, rollMode]);
-
-  useEffect(() => {
-    if (!canManageTurn || rollMode !== "online" || !state.currentPlayerId) {
-      return;
-    }
-
-    const turnKey = `${state.currentPlayerId}:${filledCount}`;
-
-    if (autoOpenedTurnKeyRef.current === turnKey) {
-      return;
-    }
-
-    autoOpenedTurnKeyRef.current = turnKey;
-    setEntryOpen(true);
-  }, [canManageTurn, filledCount, rollMode, state.currentPlayerId]);
+  }, [canManageTurnEffective, rollMode]);
 
   useEffect(() => {
     if (state.players.some((player) => player.id === viewedPlayerId)) {
@@ -484,7 +574,7 @@ export function GameTurnScreen({
         </div>
       </div>
 
-      {canManageTurn && activeScoreCard ? (
+      {canManageTurnEffective && activeScoreCard ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-emerald-950/92 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-18px_44px_rgba(0,0,0,0.4)] sm:backdrop-blur-xl">
           <div className="mx-auto flex max-w-2xl items-center gap-3">
             <div className="min-w-0 flex-1">
@@ -507,7 +597,7 @@ export function GameTurnScreen({
       {state.activeTurn ? (
         <LiveDiceWindow
           activeTurn={state.activeTurn}
-          className={canManageTurn && !entryOpen ? "bottom-24 sm:bottom-24" : undefined}
+          className={canManageTurnEffective && !entryOpen ? "bottom-24 sm:bottom-24" : undefined}
           playerName={
             state.players.find((player) => player.id === state.activeTurn?.playerId)
               ?.displayName ?? "Aktueller Spieler"
@@ -515,8 +605,26 @@ export function GameTurnScreen({
         />
       ) : null}
 
+      {!state.activeTurn && botReplay ? (
+        <LiveDiceWindow
+          activeTurn={{
+            diceValues: botReplay.diceValues,
+            heldDice: botReplay.heldDice,
+            id: "bot-replay",
+            playerId: "bot-replay",
+            rollCount: botReplay.rollCount,
+            updatedAt: new Date().toISOString()
+          }}
+          playerName={botReplay.playerName}
+        />
+      ) : null}
+
+      {!state.activeTurn && state.latestEntry && (suppressCurrentUserTurn || !canManageTurn) ? (
+        <LatestEntryWindow latestEntry={state.latestEntry} />
+      ) : null}
+
       <AnimatePresence>
-        {entryOpen && canManageTurn && activeScoreCard ? (
+        {entryOpen && canManageTurnEffective && activeScoreCard ? (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             className="fixed inset-0 z-[60] overflow-y-auto bg-emerald-950 text-white"
@@ -566,7 +674,7 @@ export function GameTurnScreen({
       </AnimatePresence>
 
       <AnimatePresence>
-        {showRollModePicker && canManageTurn ? (
+        {showRollModePicker && canManageTurnEffective ? (
           <motion.div
             animate={{ opacity: 1 }}
             className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 sm:backdrop-blur-sm"

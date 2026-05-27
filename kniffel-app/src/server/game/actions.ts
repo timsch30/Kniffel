@@ -1409,9 +1409,17 @@ export async function simulateGameAction(gameId: string): Promise<void> {
 }
 
 
-async function playBotTurnsUntilHumanTurn(tx: Prisma.TransactionClient, gameId: string) {
+const BOT_TURN_REVEAL_DELAY_MS = 1800;
+
+function waitForBotReveal(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function playBotTurnsUntilHumanTurn(gameId: string) {
   while (true) {
-    const game = await tx.game.findUnique({
+    const game = await prisma.game.findUnique({
       include: {
         players: {
           orderBy: {
@@ -1473,25 +1481,6 @@ async function playBotTurnsUntilHumanTurn(tx: Prisma.TransactionClient, gameId: 
       scoreDecision.points === 0
     );
 
-    await tx.scoreCard.update({
-      data: {
-        [scoreDecision.category]: scoreDecision.points,
-        struckCategories,
-        total: nextScoreCard.total,
-        upperBonus: nextScoreCard.upperBonus
-      } as Prisma.ScoreCardUpdateInput,
-      where: { id: scoreCard.id }
-    });
-
-    await tx.turn.create({
-      data: {
-        diceValues,
-        gameId: game.id,
-        playerId: currentPlayer.id,
-        status: "FINISHED"
-      }
-    });
-
     const updatedCards = game.scoreCards.map((card) =>
       card.id === scoreCard.id
         ? {
@@ -1504,13 +1493,45 @@ async function playBotTurnsUntilHumanTurn(tx: Prisma.TransactionClient, gameId: 
         : card
     );
 
-    if (areAllScoreCardsComplete(updatedCards)) {
-      await tx.game.update({ data: { currentPlayerId: null, status: "FINISHED" }, where: { id: game.id } });
-      return;
-    }
+    await prisma.$transaction(async (tx) => {
+      await tx.scoreCard.update({
+        data: {
+          [scoreDecision.category]: scoreDecision.points,
+          struckCategories,
+          total: nextScoreCard.total,
+          upperBonus: nextScoreCard.upperBonus
+        } as Prisma.ScoreCardUpdateInput,
+        where: { id: scoreCard.id }
+      });
 
-    const nextTurn = determineNextPlayer(game.players, currentPlayer.id);
-    await tx.game.update({ data: { currentPlayerId: nextTurn.nextPlayerId, roundNumber: nextTurn.completedRotation ? game.roundNumber + 1 : game.roundNumber }, where: { id: game.id } });
+      await tx.turn.create({
+        data: {
+          diceValues,
+          gameId: game.id,
+          playerId: currentPlayer.id,
+          status: "FINISHED"
+        }
+      });
+
+      if (areAllScoreCardsComplete(updatedCards)) {
+        await tx.game.update({
+          data: { currentPlayerId: null, status: "FINISHED" },
+          where: { id: game.id }
+        });
+        return;
+      }
+
+      const nextTurn = determineNextPlayer(game.players, currentPlayer.id);
+      await tx.game.update({
+        data: {
+          currentPlayerId: nextTurn.nextPlayerId,
+          roundNumber: nextTurn.completedRotation ? game.roundNumber + 1 : game.roundNumber
+        },
+        where: { id: game.id }
+      });
+    });
+
+    await waitForBotReveal(BOT_TURN_REVEAL_DELAY_MS);
   }
 }
 
@@ -1694,8 +1715,8 @@ export async function enterScoreAction(gameId: string, formData: FormData): Prom
         }
       });
 
-      await playBotTurnsUntilHumanTurn(tx, game.id);
     });
+    await playBotTurnsUntilHumanTurn(gameId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Punkte konnten nicht gespeichert werden.";
 
