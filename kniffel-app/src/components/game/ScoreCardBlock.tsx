@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import { Ban, CheckCircle2, Circle, LockKeyhole } from "lucide-react";
 
 import type { ScoreSuggestion } from "@/game/scoring";
@@ -149,6 +151,7 @@ function CategoryRow({
     return (
       <button
         aria-pressed={selected}
+        data-score-category={category}
         className={cn(
           "relative flex w-full origin-center items-center justify-between gap-3 overflow-hidden rounded-lg px-3 text-left transition-all duration-300 disabled:cursor-not-allowed",
           compact ? "min-h-9 py-1.5" : "min-h-11 py-2",
@@ -178,6 +181,7 @@ function CategoryRow({
 
   return (
     <div
+      data-score-category={category}
       className={cn(
         "relative flex origin-center items-center justify-between gap-3 overflow-hidden rounded-lg px-3 transition-all duration-300",
         compact ? "min-h-9 py-1.5" : "min-h-11 py-2",
@@ -305,6 +309,24 @@ export function ScoreCardBlock({
   scoreSuggestions,
   selectedCategory
 }: ScoreCardBlockProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!animateEntryCategory || !containerRef.current) {
+      return;
+    }
+
+    const row = containerRef.current.querySelector<HTMLElement>(
+      `[data-score-category="${animateEntryCategory}"]`
+    );
+
+    row?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+      inline: "nearest"
+    });
+  }, [animateEntryCategory]);
+
   if (!scoreCard) {
     return (
       <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
@@ -339,7 +361,7 @@ export function ScoreCardBlock({
   );
 
   return (
-    <div className={cn("grid gap-4", className)}>
+    <div className={cn("grid gap-4", className)} ref={containerRef}>
       <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
         <div
           className="h-full rounded-full bg-ink transition-all duration-300 dark:bg-white"
