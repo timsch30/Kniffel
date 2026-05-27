@@ -41,6 +41,9 @@ type OnlineTurnUpdatePayload = {
   rollCount: number;
 };
 
+const BOT_ENTRY_FOCUS_DELAY_MS = 3400;
+const DEFAULT_ENTRY_FOCUS_DELAY_MS = 2200;
+
 type BotReplayState = {
   diceValues: number[];
   heldDice: boolean[];
@@ -256,18 +259,33 @@ export function GameTurnScreen({
     });
     scrollToPlayer(latestEntry.playerId);
 
+    const latestEntryPlayer = state.players.find((player) => player.id === latestEntry.playerId);
+    const latestEntryIsBot = Boolean(latestEntryPlayer?.isBot);
+    const focusDelayMs = shouldReduceMotion
+      ? 350
+      : latestEntryIsBot
+        ? BOT_ENTRY_FOCUS_DELAY_MS
+        : DEFAULT_ENTRY_FOCUS_DELAY_MS;
+
     latestEntryTimeoutRef.current = window.setTimeout(
       () => {
         setAnimatingEntry((current) => (current?.id === latestEntry.id ? null : current));
         latestEntryTimeoutRef.current = null;
 
-        if (state.currentPlayerId) {
+        if (!latestEntryIsBot && state.currentPlayerId) {
           scrollToPlayer(state.currentPlayerId);
         }
       },
-      shouldReduceMotion ? 350 : 2200
+      focusDelayMs
     );
-  }, [emblaApi, scrollToPlayer, shouldReduceMotion, state.currentPlayerId, state.latestEntry]);
+  }, [
+    emblaApi,
+    scrollToPlayer,
+    shouldReduceMotion,
+    state.currentPlayerId,
+    state.latestEntry,
+    state.players
+  ]);
 
   useEffect(() => {
     playersRef.current = state.players;
