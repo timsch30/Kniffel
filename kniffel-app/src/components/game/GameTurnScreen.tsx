@@ -181,7 +181,8 @@ export function GameTurnScreen({
   const currentUserPlayer = state.players.find((player) => player.userId === currentUserId);
   const activeScoreCard = currentPlayer ? getPlayerScoreCard(state, currentPlayer.id) : null;
   const canManageTurn = !suppressCurrentUserTurn && canUserManageCurrentTurn(state, currentUserId);
-  const canManageTurnEffective = canManageTurn && !botReplay;
+  const shouldHideEntryForBotTurn = currentPlayer?.isBot === true;
+  const canManageTurnEffective = canManageTurn && !botReplay && !shouldHideEntryForBotTurn;
   const filledCount = getFilledCategoryCount(activeScoreCard);
   const viewedTotal = viewedPlayerScoreCard?.total ?? 0;
   const lastEntryByPlayerId = new Map(state.lastEntries.map((entry) => [entry.playerId, entry]));
@@ -348,7 +349,7 @@ export function GameTurnScreen({
         playerName: baseName,
         rollCount: 2
       });
-    }, 700);
+    }, 1100);
 
     const secondTimeout = window.setTimeout(() => {
       if (cancelled) {
@@ -361,13 +362,13 @@ export function GameTurnScreen({
         playerName: baseName,
         rollCount: 3
       });
-    }, 1400);
+    }, 2200);
 
     const finalTimeout = window.setTimeout(() => {
       if (!cancelled) {
         setBotReplay(null);
       }
-    }, 2400);
+    }, 3400);
 
     return () => {
       cancelled = true;

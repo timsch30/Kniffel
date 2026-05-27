@@ -1409,7 +1409,7 @@ export async function simulateGameAction(gameId: string): Promise<void> {
 }
 
 
-const BOT_TURN_REVEAL_DELAY_MS = 1200;
+const BOT_TURN_REVEAL_DELAY_MS = 1800;
 
 function waitForBotReveal(ms: number): Promise<void> {
   return new Promise((resolve) => {
