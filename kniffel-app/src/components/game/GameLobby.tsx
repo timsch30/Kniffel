@@ -1080,7 +1080,11 @@ export function GameLobby({
                 {userTurn ? "Du bist dran" : "Admin verwaltet"}
               </p>
               <p className="truncate text-sm font-semibold text-white">
-                {currentPlayer ? `${currentPlayer.displayName} eintragen` : "Zug fortsetzen"}
+                {currentPlayer
+                  ? currentPlayer.isBot
+                    ? `${currentPlayer.displayName} spielt`
+                    : `${currentPlayer.displayName} eintragen`
+                  : "Zug fortsetzen"}
               </p>
             </div>
             <Button className="min-h-12 px-6" onClick={onOpenTurn} type="button">
